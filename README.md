@@ -53,7 +53,7 @@ Em camadas, cada uma conversando apenas com a vizinha:
 ## Estrutura do projeto
 
 ```
-projeto-sentimento/
+analise-avaliacoes/
 ├─ docker-compose.yml
 ├─ requirements.txt
 ├─ .env
