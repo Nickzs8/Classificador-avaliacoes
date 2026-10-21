@@ -1,8 +1,6 @@
-# Classificador de Sentimento com MongoDB
+# Classificador de Sentimento
 
 Projeto que classifica avaliações de produtos em português como **positivas** ou **negativas**.
-
-> **Status:** em desenvolvimento, etapa por etapa. Veja o [roadmap](#roadmap).
 
 ---
 
