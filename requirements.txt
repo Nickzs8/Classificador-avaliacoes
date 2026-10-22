@@ -1,0 +1,6 @@
+pymongo>=4.8
+pandas>=2.2
+scikit-learn>=1.5
+joblib>=1.4
+python-dotenv>=1.0
+pytest>=8.0

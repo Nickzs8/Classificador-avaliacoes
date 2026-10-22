@@ -1,3 +1,8 @@
-teste.ipynb
+.venv/
 .env
+__pycache__/
+data/raw/
+models/
+*.joblib
 .idea
+teste.ipynb
