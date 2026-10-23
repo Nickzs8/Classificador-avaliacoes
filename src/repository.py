@@ -41,3 +41,8 @@ class ReviewRepository:
             {"$sort": {"total": -1}},
         ]
         return {str(d["_id"]): d["total"] for d in self._col.aggregate(pipeline)}
+
+    def buscar_rotulados(self):
+        filtro = {"rotulo": {"$ne": None}}
+        projecao = {"_id": 0, "texto": 1, "rotulo": 1}
+        return list(self._col.find(filtro, projecao))
