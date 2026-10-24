@@ -163,9 +163,9 @@ MODEL_PATH=models/modelo_v1.joblib
 
 A métrica principal é o **F1-score por classe**, porque as classes são desbalanceadas. Uma meta realista para este modelo simples é em torno de 85-90%.
 
-Resultados:
+****Resultados:
 
 | Classe | Precisão | Recall | F1 |
 |---|---|---|---|
 | positivo | 0.98 | 0.93 | 0.95 |
-| negativo | 0.84 | 0.94 | 0.89 |
+| negativo | 0.84 | 0.94 | 0.89 |****
