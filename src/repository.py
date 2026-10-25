@@ -2,6 +2,7 @@ from pymongo import ASCENDING, MongoClient, UpdateOne
 
 from config import MONGO_COLLECTION, MONGO_DB, MONGO_URI
 
+SENTIMENTO = {"$addFields": {"sentimento": {"$ifNull": ["$rotulo", "$predicao.classe"]}}}
 
 class ReviewRepository:
     """Único ponto de acesso ao MongoDB no projeto."""
@@ -67,3 +68,116 @@ class ReviewRepository:
             resultado = self._col.bulk_write(operacoes[i:i + lote], ordered=False)
             modificados += resultado.modified_count
         return modificados
+
+    def negativas_por_produto(self, limite=10):
+        ## produtos com mais avaliacoes negativas
+
+        pipeline = [
+            SENTIMENTO,
+            {"$match": {"sentimento": {"$ne": None}, "produto": {"$ne": None}}},
+            {
+                "$group": {
+                    "_id": "$produto",
+                    "total": {"$sum": 1},
+                    "negativas": {
+                        "$sum": {"$cond": [{"$eq": ["$sentimento", "negativo"]}, 1, 0]}
+                    },
+                }
+            },
+            {"$match": {"negativas": {"$gt": 0}}},
+            {"$sort": {"negativas": -1}},
+            {"$limit": limite},
+            {
+                "$project": {
+                    "_id": 0,
+                    "produto": "$_id",
+                    "negativas": 1,
+                    "total": 1,
+                    "pct_negativas": {
+                        "$round": [
+                            {"$multiply": [{"$divide": ["$negativas", "$total"]}, 100]},
+                            1,
+                        ]
+                    },
+                }
+            },
+        ]
+        return list(self._col.aggregate(pipeline))
+
+    def evolucao_por_mes(self):
+        """Total de avaliações por mês e sentimento (ignora datas nulas)."""
+        pipeline = [
+            SENTIMENTO,
+            {"$match": {"data": {"$ne": None}, "sentimento": {"$ne": None}}},
+            {
+                "$group": {
+                    "_id": {
+                        "mes": {"$dateToString": {"format": "%Y-%m", "date": "$data"}},
+                        "sentimento": "$sentimento",
+                    },
+                    "total": {"$sum": 1},
+                }
+            },
+            {"$sort": {"_id.mes": 1, "_id.sentimento": 1}},
+            {
+                "$project": {
+                    "_id": 0,
+                    "mes": "$_id.mes",
+                    "sentimento": "$_id.sentimento",
+                    "total": 1,
+                }
+            },
+        ]
+        return list(self._col.aggregate(pipeline))
+
+    def confianca_media_por_classe(self):
+        """Confiança média das predições, por classe prevista."""
+        pipeline = [
+            {"$match": {"predicao": {"$ne": None}}},
+            {
+                "$group": {
+                    "_id": "$predicao.classe",
+                    "total": {"$sum": 1},
+                    "confianca_media": {"$avg": "$predicao.confianca"},
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "classe": "$_id",
+                    "total": 1,
+                    "confianca_media": {"$round": ["$confianca_media", 3]},
+                }
+            },
+            {"$sort": {"classe": 1}},
+        ]
+        return list(self._col.aggregate(pipeline))
+
+    def taxa_acerto(self):
+        """% de predições iguais ao rotulo_real, entre os documentos com predição."""
+        pipeline = [
+            {"$match": {"predicao": {"$ne": None}}},
+            {
+                "$group": {
+                    "_id": None,
+                    "total": {"$sum": 1},
+                    "acertos": {
+                        "$sum": {"$cond": [{"$eq": ["$predicao.classe", "$rotulo_real"]}, 1, 0]}
+                    },
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "total": 1,
+                    "acertos": 1,
+                    "taxa_acerto": {
+                        "$round": [
+                            {"$multiply": [{"$divide": ["$acertos", "$total"]}, 100]},
+                            1,
+                        ]
+                    },
+                }
+            },
+        ]
+        return list(self._col.aggregate(pipeline))
