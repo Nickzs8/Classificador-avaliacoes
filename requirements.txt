@@ -4,3 +4,4 @@ scikit-learn>=1.5
 joblib>=1.4
 python-dotenv>=1.0
 pytest>=8.0
+streamlit>=1.35
