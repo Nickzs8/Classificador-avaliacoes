@@ -24,24 +24,8 @@ def carregar_dados():
     print(f"Dados carregados do MongoDB: {len(df)} documentos rotulados.")
     return df
 
-
-def treinar_modelo():
-    # carregar dados
-    df = carregar_dados()
-    X = df["texto"]
-    y = df["rotulo"]
-
-    # dividir em Treino (80%) e Teste (20%)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.20, random_state=42, stratify=y
-    )
-
-    print(
-        f"Base dividida: {len(X_train)} amostras de treino e {len(X_test)} de teste.\n"
-    )
-
-    # montar pipeline
-    pipeline = Pipeline(
+def montar_pipeline():
+    return Pipeline(
         [
             (
                 "tfidf",
@@ -61,12 +45,34 @@ def treinar_modelo():
         ]
     )
 
+def predizer_conjunto(pipeline, X_test):
+    return pipeline.predict(X_test)
+
+
+def treinar_modelo():
+    # carregar dados
+    df = carregar_dados()
+    X = df["texto"]
+    y = df["rotulo"]
+
+    # dividir em Treino (80%) e Teste (20%)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.20, random_state=42, stratify=y
+    )
+
+    print(
+        f"Base dividida: {len(X_train)} amostras de treino e {len(X_test)} de teste.\n"
+    )
+
+    pipeline = montar_pipeline()
+
     # treinar o modelo
     print("Treinando o pipeline...")
     pipeline.fit(X_train, y_train)
 
     # avaliar no conjunto de teste
-    y_pred = pipeline.predict(X_test)
+    y_pred = predizer_conjunto(pipeline, X_test)
+
     print("\n" + "=" * 50)
     print("RELATÓRIO DE CLASSIFICAÇÃO (TESTE)")
     print("=" * 50)

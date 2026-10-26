@@ -1,7 +1,7 @@
-pymongo>=4.8
-pandas>=2.2
-scikit-learn>=1.5
-joblib>=1.4
-python-dotenv>=1.0
-pytest>=8.0
-streamlit>=1.35
+joblib==1.6.0
+pandas==3.1.0
+pymongo==4.19.0
+pytest==9.1.1
+python-dotenv==1.2.4
+scikit-learn==1.9.1
+streamlit==1.66.1
