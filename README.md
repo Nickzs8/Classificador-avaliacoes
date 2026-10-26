@@ -81,6 +81,7 @@ classificador-avaliacoes/
 ├─ requirements.txt           # Project dependencies
 ├─ pytest.ini                 # Pytest path and runner configuration
 ├─ LICENSE                    # MIT License
+├─ AGENTS.md                  # Operational guidelines for AI coding agents
 ├─ .env.example               # Environment variables template
 ├─ docs/
 │  ├─ ARCHITECTURE.md         # Detailed architectural specifications

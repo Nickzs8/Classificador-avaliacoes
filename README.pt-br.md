@@ -81,6 +81,7 @@ classificador-avaliacoes/
 ├─ requirements.txt           # Dependências do projeto
 ├─ pytest.ini                 # Configuração de paths do Pytest
 ├─ LICENSE                    # Licença MIT
+├─ AGENTS.md                  # Guia e diretrizes para agentes de IA
 ├─ .env.example               # Modelo de variáveis de ambiente
 ├─ docs/
 │  ├─ ARCHITECTURE.md         # Especificação arquitetural detalhada
