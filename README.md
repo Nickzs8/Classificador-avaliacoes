@@ -69,6 +69,8 @@ Layered architecture with loose coupling (*Repository Pattern*), where each comp
 └─────────────────────────────────────────┘
 ```
 
+> 📖 **Comprehensive Architecture Documentation:** For complete specifications on design patterns (*Service Layer*, *DTOs*, *Dependency Injection*), data flows, and BSON indexing strategies, refer to **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+
 ---
 
 ## Project Structure
@@ -81,6 +83,8 @@ classificador-avaliacoes/
 ├─ LICENSE                    # MIT License
 ├─ .env.example               # Environment variables template
 ├─ docs/
+│  ├─ ARCHITECTURE.md         # Detailed architectural specifications
+│  ├─ ROADMAP_V2.md           # Full Version 2 implementation roadmap
 │  └─ images/                 # Documentation screenshots and assets
 ├─ data/
 │  ├─ raw/B2W-Reviews01.csv   # Raw original dataset (not versioned)
@@ -238,6 +242,26 @@ Due to class imbalance (higher volume of positive reviews), the evaluation focus
 
 * **Model Behavior:** The high recall on negative reviews (0.94) ensures that nearly all customer dissatisfaction cases are detected by the analytics pipeline.
 * **Generalization on Unseen Data:** **92.7% accuracy** measured on the 2,000 unlabeled documents compared against `rotulo_real` (with an average confidence of **92.4%** for negatives and **97.7%** for positives).
+
+---
+
+## V2 Roadmap: Real-Time Inference with REST API
+
+In **V2**, the system expands beyond batch processing to allow users to submit external reviews in real time via **FastAPI** and receive instantaneous classification:
+
+```
+User → Interface → API (FastAPI) → Classification Service → Model (.joblib)
+                      │
+                      └→ ReviewRepository → MongoDB (stores the classified review)
+```
+
+### Architecture Decision Records (ADR)
+* **FastAPI + Uvicorn:** Automatic Pydantic validation and interactive OpenAPI docs at `/docs`.
+* **Synchronous Route Handlers (`def`):** Protects the event loop by running blocking `pymongo` and `scikit-learn` calls in a separate threadpool.
+* **Service Layer (`classificador.py`):** Centralizes inference logic shared by both batch jobs and API endpoints.
+* **Dependency Injection (`Depends`):** Enables isolated unit and integration testing with in-memory mocks.
+
+See the full specification, data schemas, and endpoint contracts in: **[docs/ROADMAP_V2.md](docs/ROADMAP_V2.md)**.
 
 ---
 

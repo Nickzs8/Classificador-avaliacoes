@@ -69,6 +69,8 @@ Arquitetura em camadas com baixo acoplamento (*Repository Pattern*), onde cada c
 └─────────────────────────────────────────┘
 ```
 
+> 📖 **Documentação Completa de Arquitetura:** Para detalhes sobre padrões adotados (*Service Layer*, *DTOs*, *Dependency Injection*), fluxos de dados e otimizações de índices BSON, consulte o documento dedicado: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+
 ---
 
 ## Estrutura do Projeto
@@ -81,6 +83,8 @@ classificador-avaliacoes/
 ├─ LICENSE                    # Licença MIT
 ├─ .env.example               # Modelo de variáveis de ambiente
 ├─ docs/
+│  ├─ ARCHITECTURE.md         # Especificação arquitetural detalhada
+│  ├─ ROADMAP_V2.md           # Planejamento completo da Versão 2
 │  └─ images/                 # Imagens e capturas de tela da documentação
 ├─ data/
 │  ├─ raw/B2W-Reviews01.csv   # Dataset original bruto (não versionado)
@@ -238,6 +242,26 @@ Como os dados possuem distribuição assimétrica (maior incidência de positivo
 
 * **Comportamento do Modelo:** O recall elevado na classe negativa (0.94) assegura que a quase totalidade das insatisfações de clientes seja capturada pela esteira analítica.
 * **Generalização em Dados Não Vistos:** Acurácia de **92.7%** aferida nos 2.000 documentos não rotulados confrontados contra o `rotulo_real` (com confiança média de **92.4%** para negativos e **97.7%** para positivos).
+
+---
+
+## Roadmap da V2: Inferência em Tempo Real com API REST
+
+Na **V2**, o projeto evolui da classificação em lote para permitir que o usuário envie avaliações externas em tempo real via **FastAPI** e receba a predição instantaneamente:
+
+```
+Usuário → Interface → API (FastAPI) → Serviço de classificação → modelo (.joblib)
+                          │
+                          └→ ReviewRepository → MongoDB (salva a avaliação já classificada)
+```
+
+### Principais Decisões de Arquitetura (ADR)
+* **FastAPI + Uvicorn:** Validação automática com Pydantic e documentação OpenAPI em `/docs`.
+* **Rotas síncronas (`def`):** Proteção do event loop delegando chamadas bloqueantes do `pymongo` e `scikit-learn` ao pool de threads.
+* **Service Layer (`classificador.py`):** Lógica de predição compartilhada entre batch e API sem duplicação de código.
+* **Injeção de Dependências (`Depends`):** Desacoplamento para testes com mocks em memória sem necessidade do MongoDB ativo.
+
+Consulte o planejamento detalhado, schemas e contrato dos endpoints em: **[docs/ROADMAP_V2.md](docs/ROADMAP_V2.md)**.
 
 ---
 
