@@ -1,48 +1,77 @@
 from pathlib import Path
+
 import pandas as pd
 
-ROOT_DIR = Path(__file__).resolve().parent
-RAW = ROOT_DIR / "data" / "raw" / "B2W-Reviews01.csv"
-OUT = ROOT_DIR / "data" / "reviews.csv"
+RAW = Path("data/raw/B2W-Reviews01.csv")
+OUT = Path("data/reviews.csv")
 AMOSTRA = 20_000
+MIN_CARACTERES = 10
+SEED = 42
 
-if not RAW.exists():
-    raise FileNotFoundError(
-        f"Ficheiro não encontrado em: {RAW}\n"
-        "Verifique se o ficheiro B2W-Reviews01.csv está salvo na pasta data/raw/."
-    )
+# nome da coluna no CSV original → nome usado no projeto
+COLUNAS = {
+    "overall_rating": "nota",
+    "review_text": "texto",
+    "product_name": "produto",
+    "submission_date": "data",
+}
 
-# 1)
-df = pd.read_csv(RAW, sep=",", low_memory=False)
 
-df = df.rename(
-    columns={
-        "overall_rating": "nota",
-        "review_text": "texto",
-        "product_name": "produto",
-        "submission_date": "data",
-    }
-)
-df = df[["texto", "nota", "produto", "data"]]
+def carregar_bruto(caminho):
+    """Lê o CSV original e deixa só as colunas que importam, já renomeadas."""
+    df = pd.read_csv(caminho, sep=";", low_memory=False)
+    df = df.rename(columns=COLUNAS)
 
-# 2) Limpeza
-df = df.dropna(subset=["texto", "nota"])
-df["texto"] = df["texto"].str.strip()
-df = df[df["texto"].str.len() >= 10]
-df = df.drop_duplicates(subset="texto")
+    return df[["texto", "nota", "produto", "data"]]
 
-# 3) Rótulo a partir da nota (descartando a nota 3)
-df = df[df["nota"] != 3]
-df["rotulo"] = df["nota"].apply(lambda n: "positivo" if n >= 4 else "negativo")
 
-# 4) Amostra reprodutível
-if len(df) > AMOSTRA:
-    df = df.sample(AMOSTRA, random_state=42)
+def limpar(df):
+    """Remove nulos, textos muito curtos e duplicados."""
+    df = df.dropna(subset=["texto", "nota"]).copy()
+    df["texto"] = df["texto"].str.strip()
+    df = df[df["texto"].str.len() >= MIN_CARACTERES]
 
-# 5) Guardar
-OUT.parent.mkdir(parents=True, exist_ok=True)
-df.to_csv(OUT, index=False)
+    return df.drop_duplicates(subset="texto")
 
-print(f"Salvo com sucesso em {OUT}: {len(df)} linhas")
-print("\nDistribuição de rótulos:")
-print(df["rotulo"].value_counts(normalize=True).round(3))
+
+def criar_rotulo(nota):
+    """Nota 4/5 → positivo, 1/2 → negativo, 3 → None (neutra, será descartada)."""
+    if nota >= 4:
+        return "positivo"
+
+    if nota <= 2:
+        return "negativo"
+
+    return None
+
+
+def rotular(df):
+    """Cria a coluna 'rotulo' e descarta as notas neutras."""
+    df = df.copy()
+    df["rotulo"] = df["nota"].apply(criar_rotulo)
+
+    return df.dropna(subset=["rotulo"])
+
+
+def amostrar(df, n=AMOSTRA):
+    """Amostra reprodutível (só se houver mais linhas que o necessário)."""
+    if len(df) > n:
+        return df.sample(n, random_state=SEED)
+
+    return df
+
+
+def preparar(df):
+    return amostrar(rotular(limpar(df)))
+
+
+def main():
+    df = preparar(carregar_bruto(RAW))
+    df.to_csv(OUT, index=False)
+
+    print(f"Salvo em {OUT}: {len(df)} linhas")
+    print(df["rotulo"].value_counts(normalize=True).round(3))
+
+
+if __name__ == "__main__":
+    main()
