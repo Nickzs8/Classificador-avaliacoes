@@ -1,4 +1,4 @@
-# Sentiment Classifier with MongoDB
+# Review Classifier with MongoDB
 
 <p align="center">
   <b>English</b> | <a href="README.pt-br.md">Português</a>

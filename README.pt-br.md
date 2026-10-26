@@ -1,4 +1,4 @@
-# Classificador de Sentimento com MongoDB
+# Classificador de Avaliações com MongoDB
 
 <p align="center">
   <a href="README.md">English</a> | <b>Português</b>
