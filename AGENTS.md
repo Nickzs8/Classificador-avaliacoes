@@ -56,7 +56,10 @@ pytest -v
 docker compose up -d
 docker compose ps
 
-# Rodar a esteira da V1 (Batch)
+# Rodar a esteira completa da V1 (Batch)
+python run_pipeline.py
+
+# Ou rodar etapas individuais:
 python src/prepare_data.py
 python src/ingest.py
 python src/train.py

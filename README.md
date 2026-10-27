@@ -78,6 +78,7 @@ Layered architecture with loose coupling (*Repository Pattern*), where each comp
 ```
 classificador-avaliacoes/
 ├─ docker-compose.yml         # MongoDB 8.2 container definition
+├─ run_pipeline.py            # End-to-end ML training pipeline orchestrator
 ├─ requirements.txt           # Project dependencies
 ├─ pytest.ini                 # Pytest path and runner configuration
 ├─ LICENSE                    # MIT License
@@ -93,7 +94,6 @@ classificador-avaliacoes/
 ├─ models/                    # Serialized model artifact (.joblib)
 ├─ src/
 │  ├─ config.py               # Environment configuration loader
-│  ├─ check_connection.py     # MongoDB connectivity diagnostic script
 │  ├─ prepare_data.py         # Step 1: Cleaning, business rules, and labeling
 │  ├─ repository.py           # Step 2: Repository with Aggregation Pipelines
 │  ├─ ingest.py               # Step 3: BSON ingestion from CSV to MongoDB
@@ -195,27 +195,21 @@ MODEL_PATH=models/modelo_v1.joblib
 ```
 *(Avoid using `$` characters in passwords due to Docker Compose variable interpolation).*
 
-### 3. Step-by-Step Execution Pipeline
+### 3. Execution Pipeline
+
+#### 1) Start Database and Train the Model
+Start the MongoDB container and run the automated end-to-end pipeline (data preparation, MongoDB ingestion, and model training):
 
 ```bash
-# 1) Clean and label raw data (generates data/reviews.csv)
-python src/prepare_data.py
-
-# 2) Start the MongoDB database container
 docker compose up -d
-docker compose ps
-python src/check_connection.py      # Confirms database connectivity
+python run_pipeline.py
+```
 
-# 3) Ingest documents into MongoDB
-python src/ingest.py
+#### 2) Batch Inference and Analytics
+Once the model is trained, perform batch inference on unlabeled reviews and inspect results:
 
-# 4) Train the model and save the artifact models/modelo_v1.joblib
-python src/train.py
-
-# 5) Perform batch inference on pending documents
-python src/predict.py
-
-# 6) Inspect Analysis Results
+```bash
+python src/predict.py                # Classifies pending documents in MongoDB
 python src/analytics.py              # Consolidated terminal tabular report
 streamlit run src/dashboard.py       # Interactive web dashboard in browser
 ```

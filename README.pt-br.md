@@ -78,6 +78,7 @@ Arquitetura em camadas com baixo acoplamento (*Repository Pattern*), onde cada c
 ```
 classificador-avaliacoes/
 ├─ docker-compose.yml         # Definição do serviço MongoDB 8.2
+├─ run_pipeline.py            # Orquestrador automatizado da esteira de ML
 ├─ requirements.txt           # Dependências do projeto
 ├─ pytest.ini                 # Configuração de paths do Pytest
 ├─ LICENSE                    # Licença MIT
@@ -93,7 +94,6 @@ classificador-avaliacoes/
 ├─ models/                    # Artefato do modelo serializado (.joblib)
 ├─ src/
 │  ├─ config.py               # Centralização de variáveis de ambiente
-│  ├─ check_connection.py     # Diagnóstico de conectividade com MongoDB
 │  ├─ prepare_data.py         # Etapa 1: Limpeza, regras de negócio e rotulagem
 │  ├─ repository.py           # Etapa 2: Repositório com Aggregation Pipelines
 │  ├─ ingest.py               # Etapa 3: Ingestão BSON do CSV para o MongoDB
@@ -195,27 +195,21 @@ MODEL_PATH=models/modelo_v1.joblib
 ```
 *(Evite caracteres como `$` na senha devido à interpretação de variáveis do Docker Compose).*
 
-### 3. Pipeline de Execução Passo a Passo
+### 3. Pipeline de Execução
+
+#### 1) Iniciar Banco e Treinar o Modelo
+Inicie o contêiner do MongoDB e execute a esteira automatizada (preparação dos dados, ingestão no banco e treinamento do modelo):
 
 ```bash
-# 1) Higieniza e rotula os dados brutos (gera data/reviews.csv)
-python src/prepare_data.py
-
-# 2) Inicializa o contêiner do banco de dados
 docker compose up -d
-docker compose ps
-python src/check_connection.py      # Confirma a conectividade com o MongoDB
+python run_pipeline.py
+```
 
-# 3) Ingestão dos documentos no MongoDB
-python src/ingest.py
+#### 2) Inferência em Lote e Visualização
+Com o modelo treinado, execute a inferência nas avaliações pendentes e visualize os relatórios analíticos:
 
-# 4) Treinamento do modelo e geração do artefato models/modelo_v1.joblib
-python src/train.py
-
-# 5) Inferência em lote nos documentos pendentes
-python src/predict.py
-
-# 6) Visualização das Análises
+```bash
+python src/predict.py                # Classifica documentos pendentes no MongoDB
 python src/analytics.py              # Relatório consolidado no terminal
 streamlit run src/dashboard.py       # Dashboard visual no navegador
 ```
