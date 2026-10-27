@@ -94,9 +94,10 @@ uvicorn api.main:app --reload --app-dir src
 O desenvolvedor mantém um cofre de documentação técnica contínua (Obsidian Vault) conectado ao ambiente de desenvolvimento para consolidação e retenção de aprendizado.
 
 **Diretrizes para o agente de IA:**
+* O agente principal pode delegar pesquisas e redação de notas ao subagente especializado **`vault-researcher`**, que opera concorrentemente em background enquanto o fluxo de código prossegue.
 * Sempre que um conceito novo, framework, padrão arquitetural ou boa prática for introduzido ou discutido, verifique a base de notas e registre-o.
-* Siga rigorosamente a estrutura do cofre:
+* Siga rigorosamente a estrutura do cofre e os templates em `Templates/`:
   * Frontmatter YAML padronizado com `tags:`
-  * Conexões internas utilizando wikilinks do Obsidian (`[[Nome da Nota]]`)
+  * Conexões internas e transversais utilizando wikilinks do Obsidian (`[[Nome da Nota]]`)
   * Blocos de código com linguagem explícita e syntax highlighting
   * Preservação da hierarquia de pastas e integração com o plugin Waypoint (`%% Begin Waypoint %%`)
