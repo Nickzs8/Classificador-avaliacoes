@@ -16,6 +16,7 @@ Os documentos seguem a estrutura padrão estabelecida por Michael Nygard e templ
 | [ADR-0004](0004-contratos-de-dados-e-validacao-com-pydantic-v2.md) | Contratos de Dados e Validação Estrita com Pydantic V2 | **Aceito** | 2026-10-27 | V2 / API |
 | [ADR-0005](0005-injecao-de-dependencias-para-testabilidade-da-api.md) | Injeção de Dependências (`Depends`) para Isolamento de Testes | **Aceito** | 2026-10-26 | V2 / Testes |
 | [ADR-0006](0006-orquestracao-da-esteira-com-run-pipeline.md) | Orquestração da Esteira de Treinamento com `run_pipeline.py` | **Aceito** | 2026-10-27 | V1 / Tooling |
+| [ADR-0007](0007-padronizacao-de-comandos-de-desenvolvimento-com-makefile.md) | Padronização de Comandos de Desenvolvimento com `Makefile` | **Aceito** | 2026-10-27 | V2 / Tooling |
 
 ---
 

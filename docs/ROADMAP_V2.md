@@ -143,6 +143,17 @@ tests/
   * Atualização dos READMEs com exemplos de `curl` e documentação interativa.
   * Merge na branch principal e criação da tag `v2.0`.
 
+### Fase 3: Internacionalização e Refatoração para Inglês (Codebase i18n)
+
+* **Etapa 9: Refatoração do Backend e Banco para Inglês**
+  * Tradução dos métodos e queries de `ReviewRepository` (`insert_review`, `find_by_id`, `list_recent`, `accuracy_rate`).
+  * Tradução dos Schemas Pydantic (`ReviewInput`, `ReviewOutput`, `HealthOutput`) e endpoints da API (`/reviews`, `/health`).
+  * Migração do serviço `Classificador` para `ClassifierService` (`classify_text`, `classify_documents`).
+* **Etapa 10: Refatoração da Suíte de Testes e Pipeline**
+  * Tradução dos testes em `tests/` mantendo cobertura de 100%.
+  * Atualização dos scripts de dados (`prepare_data.py`, `ingest.py`, `train.py`) e `run_pipeline.py`.
+  * Manter o dataset B2W (dados em português) preservado como caso de uso legítimo de NLP em língua portuguesa.
+
 ---
 
 ## 6. Fora do Escopo (Ideias para V3)

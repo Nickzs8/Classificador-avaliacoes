@@ -67,7 +67,9 @@ python src/predict.py
 python src/analytics.py
 
 # Iniciar o Dashboard Web (Streamlit)
-streamlit run src/dashboard.py
+streamlit run src/interface/dashboard.py
+# ou via make:
+make dashboard
 
 # Iniciar o servidor da API (FastAPI)
 uvicorn api.main:app --reload --app-dir src

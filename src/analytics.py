@@ -17,6 +17,24 @@ def pivotar_evolucao(df):
     )
 
 
+def formatar_recentes(docs):
+    """Converte lista de documentos BSON em DataFrame amigável para exibição."""
+    linhas = []
+    for d in docs:
+        pred = d.get("predicao") or {}
+        data = d.get("data")
+        data_str = data.strftime("%d/%m/%Y %H:%M") if hasattr(data, "strftime") else "N/A"
+        linhas.append({
+            "Data": data_str,
+            "Produto": d.get("produto") or "Não informado",
+            "Texto": d.get("texto", ""),
+            "Sentimento": pred.get("classe") or d.get("rotulo") or "Pendente",
+            "Confiança": f"{float(pred.get('confianca', 0.0)) * 100:.1f}%" if pred.get("confianca") else "N/A",
+            "Origem": d.get("origem", "batch"),
+        })
+    return pd.DataFrame(linhas)
+
+
 def carregar_analises():
     """Roda as agregações no MongoDB e devolve tudo pronto como DataFrames."""
     with ReviewRepository() as repo:
@@ -27,6 +45,7 @@ def carregar_analises():
             "evolucao_por_mes": pivotar_evolucao(pd.DataFrame(repo.evolucao_por_mes())),
             "confianca_media": pd.DataFrame(repo.confianca_media_por_classe()),
             "taxa_acerto": pd.DataFrame(repo.taxa_acerto()),
+            "recentes": formatar_recentes(repo.listar_recentes(limite=10)),
         }
 
 

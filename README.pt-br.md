@@ -200,7 +200,7 @@ Com o modelo treinado, execute a inferência nas avaliações pendentes e visual
 ```bash
 python src/predict.py                # Classifica documentos pendentes no MongoDB
 python src/analytics.py              # Relatório consolidado no terminal
-streamlit run src/dashboard.py       # Dashboard visual no navegador
+streamlit run src/interface/dashboard.py # Dashboard visual no navegador (ou make dashboard)
 ```
 
 ---

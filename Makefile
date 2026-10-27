@@ -50,7 +50,7 @@ ui:
 
 ## Start Streamlit analytical metrics dashboard (V1)
 dashboard: up
-	$(STREAMLIT) run src/dashboard.py
+	$(STREAMLIT) run src/interface/dashboard.py
 
 ## Run both API and UI concurrently in parallel
 dev: up
