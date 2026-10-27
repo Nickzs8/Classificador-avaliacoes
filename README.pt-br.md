@@ -75,37 +75,25 @@ Arquitetura em camadas com baixo acoplamento (*Repository Pattern*), onde cada c
 
 ## Estrutura do Projeto
 
-```
+```text
 classificador-avaliacoes/
-├─ docker-compose.yml         # Definição do serviço MongoDB 8.2
-├─ run_pipeline.py            # Orquestrador automatizado da esteira de ML
+├─ docker-compose.yml         # Definição do contêiner MongoDB 8.2
+├─ run_pipeline.py            # Orquestrador da esteira de ML em um comando
 ├─ requirements.txt           # Dependências do projeto
-├─ pytest.ini                 # Configuração de paths do Pytest
+├─ pytest.ini                 # Configuração de execução do Pytest
 ├─ LICENSE                    # Licença MIT
 ├─ AGENTS.md                  # Guia e diretrizes para agentes de IA
 ├─ .env.example               # Modelo de variáveis de ambiente
-├─ docs/
-│  ├─ adr/                    # Registros de Decisões de Arquitetura (ADRs)
-│  ├─ ARCHITECTURE.md         # Especificação arquitetural detalhada
-│  ├─ ROADMAP_V2.md           # Planejamento completo da Versão 2
-│  └─ images/                 # Imagens e capturas de tela da documentação
-├─ data/
-│  ├─ raw/B2W-Reviews01.csv   # Dataset original bruto (não versionado)
-│  └─ reviews.csv             # Amostra higienizada e rotulada (não versionado)
-├─ models/                    # Artefato do modelo serializado (.joblib)
+├─ docs/                      # Especificações de arquitetura, ADRs e roadmap
+├─ data/                      # Datasets brutos e amostras preparadas (não versionados)
+├─ models/                    # Artefatos binários dos modelos (.joblib)
 ├─ src/
-│  ├─ config.py               # Centralização de variáveis de ambiente
-│  ├─ prepare_data.py         # Etapa 1: Limpeza, regras de negócio e rotulagem
-│  ├─ repository.py           # Etapa 2: Repositório com Aggregation Pipelines
-│  ├─ ingest.py               # Etapa 3: Ingestão BSON do CSV para o MongoDB
-│  ├─ train.py                # Etapa 4: Treinamento e avaliação do modelo
-│  ├─ predict.py              # Etapa 5: Predição em lote e auditoria
-│  ├─ analytics.py            # Etapa 6: Relatórios tabulares via terminal
-│  └─ dashboard.py            # Etapa 6: Aplicação web Streamlit
-└─ tests/                     # Testes unitários automatizados (isolados do banco)
-   ├─ test_rotulagem.py
-   ├─ test_ingest.py
-   └─ test_modelo.py
+│  ├─ api/                    # Camada de API REST (FastAPI: rotas, schemas e dependências)
+│  ├─ services/               # Camada de Serviço (lógica de inferência e Classificador)
+│  ├─ interface/              # Interface com o usuário (Dashboard Streamlit)
+│  ├─ repository.py           # Repositório de dados (único ponto de acesso com PyMongo)
+│  └─ *.py                    # Scripts da esteira de treinamento e análises em lote
+└─ tests/                     # Suíte de testes unitários e de integração automatizados
 ```
 
 ---
@@ -254,7 +242,7 @@ Usuário → Interface → API (FastAPI) → Serviço de classificação → mod
 ### Principais Decisões de Arquitetura (ADR)
 * **FastAPI + Uvicorn:** Validação automática com Pydantic e documentação OpenAPI em `/docs`.
 * **Rotas síncronas (`def`):** Proteção do event loop delegando chamadas bloqueantes do `pymongo` e `scikit-learn` ao pool de threads.
-* **Service Layer (`classificador.py`):** Lógica de predição compartilhada entre batch e API sem duplicação de código.
+* **Service Layer (`services/classificador.py`):** Lógica de predição compartilhada entre batch e API sem duplicação de código.
 * **Injeção de Dependências (`Depends`):** Desacoplamento para testes com mocks em memória sem necessidade do MongoDB ativo.
 
 Consulte o planejamento detalhado, schemas e contrato dos endpoints em: **[docs/ROADMAP_V2.md](docs/ROADMAP_V2.md)**.

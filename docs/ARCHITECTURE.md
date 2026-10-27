@@ -29,7 +29,7 @@ O projeto foi estruturado seguindo uma **Arquitetura em Camadas (Layered Archite
 
 ### Padrões Adotados:
 * **Repository Pattern (`ReviewRepository`):** Isola toda a complexidade de consultas, pipelines de agregação BSON e transações do MongoDB em um único ponto do sistema. Nenhum outro arquivo importa ou consome diretamente o `pymongo`.
-* **Service Layer (`classificador.py`):** Centraliza o carregamento do modelo e as transformações de inferência NLP, compartilhando a mesma lógica entre as predições em lote da V1 e os endpoints em tempo real da V2.
+* **Service Layer (`src/services/classificador.py`):** Centraliza o carregamento do modelo e as transformações de inferência NLP, compartilhando a mesma lógica entre as predições em lote da V1 e os endpoints em tempo real da V2.
 * **DTO / Schemas (Pydantic):** Validação estrita e tipagem forte nos contratos de entrada e saída da API.
 * **Dependency Injection (`Depends`):** Injeção de repositórios e serviços nas rotas HTTP do FastAPI, permitindo testes isolados com mocks em memória sem necessidade do banco ativo.
 * **Threadpool Offloading:** Declaração de rotas com `def` para garantir que chamadas síncronas/bloqueantes do PyMongo e Scikit-Learn executem em threads secundárias, preservando o event loop da API.

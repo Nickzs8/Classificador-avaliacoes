@@ -75,37 +75,25 @@ Layered architecture with loose coupling (*Repository Pattern*), where each comp
 
 ## Project Structure
 
-```
+```text
 classificador-avaliacoes/
 ├─ docker-compose.yml         # MongoDB 8.2 container definition
 ├─ run_pipeline.py            # End-to-end ML training pipeline orchestrator
 ├─ requirements.txt           # Project dependencies
-├─ pytest.ini                 # Pytest path and runner configuration
+├─ pytest.ini                 # Pytest runner configuration
 ├─ LICENSE                    # MIT License
 ├─ AGENTS.md                  # Operational guidelines for AI coding agents
 ├─ .env.example               # Environment variables template
-├─ docs/
-│  ├─ adr/                    # Architecture Decision Records (ADRs)
-│  ├─ ARCHITECTURE.md         # Detailed architectural specifications
-│  ├─ ROADMAP_V2.md           # Full Version 2 implementation roadmap
-│  └─ images/                 # Documentation screenshots and assets
-├─ data/
-│  ├─ raw/B2W-Reviews01.csv   # Raw original dataset (not versioned)
-│  └─ reviews.csv             # Cleaned and labeled sample (not versioned)
-├─ models/                    # Serialized model artifact (.joblib)
+├─ docs/                      # Architecture specifications, ADRs, and roadmap
+├─ data/                      # Raw datasets and processed samples (not versioned)
+├─ models/                    # Serialized machine learning models (.joblib)
 ├─ src/
-│  ├─ config.py               # Environment configuration loader
-│  ├─ prepare_data.py         # Step 1: Cleaning, business rules, and labeling
-│  ├─ repository.py           # Step 2: Repository with Aggregation Pipelines
-│  ├─ ingest.py               # Step 3: BSON ingestion from CSV to MongoDB
-│  ├─ train.py                # Step 4: Model training and evaluation
-│  ├─ predict.py              # Step 5: Batch inference and auditing
-│  ├─ analytics.py            # Step 6: Console tabular reports
-│  └─ dashboard.py            # Step 6: Streamlit interactive web application
-└─ tests/                     # Automated unit tests (isolated from the database)
-   ├─ test_rotulagem.py
-   ├─ test_ingest.py
-   └─ test_modelo.py
+│  ├─ api/                    # REST API layer (FastAPI routes, schemas, and dependencies)
+│  ├─ services/               # Service Layer (inference logic and Classificador)
+│  ├─ interface/              # User interface components (Streamlit dashboard)
+│  ├─ repository.py           # Data access repository (single PyMongo entry point)
+│  └─ *.py                    # Batch training and analytics pipeline scripts
+└─ tests/                     # Automated unit and integration test suite (Pytest)
 ```
 
 ---
@@ -254,7 +242,7 @@ User → Interface → API (FastAPI) → Classification Service → Model (.jobl
 ### Architecture Decision Records (ADR)
 * **FastAPI + Uvicorn:** Automatic Pydantic validation and interactive OpenAPI docs at `/docs`.
 * **Synchronous Route Handlers (`def`):** Protects the event loop by running blocking `pymongo` and `scikit-learn` calls in a separate threadpool.
-* **Service Layer (`classificador.py`):** Centralizes inference logic shared by both batch jobs and API endpoints.
+* **Service Layer (`services/classificador.py`):** Centralizes inference logic shared by both batch jobs and API endpoints.
 * **Dependency Injection (`Depends`):** Enables isolated unit and integration testing with in-memory mocks.
 
 See the full specification, data schemas, and endpoint contracts in: **[docs/ROADMAP_V2.md](docs/ROADMAP_V2.md)**.

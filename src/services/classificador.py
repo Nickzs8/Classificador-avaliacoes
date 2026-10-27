@@ -33,7 +33,7 @@ class Classificador:
         }
 
     def classificar_documentos(self, documentos: list[dict]) -> list[dict]:
-        """Classifica múltiplos documentos em lote (usado pelo predict.py da V1)."""
+        """Classifica múltiplos documentos em lote."""
         if not documentos:
             return []
 
