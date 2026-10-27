@@ -12,6 +12,8 @@ MONGO_PORT = os.getenv("MONGO_PORT", "27017")
 MONGO_DB = os.getenv("MONGO_DB", "reviews_db")
 MONGO_COLLECTION = os.getenv("MONGO_COLLECTION", "reviews")
 MODEL_PATH = os.getenv("MODEL_PATH", "models/modelo_v1.joblib")
+API_HOST = os.getenv("API_HOST", "0.0.0.0")
+API_PORT = int(os.getenv("API_PORT", "8000"))
 
 # quote_plus protege caracteres especiais na senha
 MONGO_URI = (
