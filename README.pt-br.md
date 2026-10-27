@@ -69,7 +69,7 @@ Arquitetura em camadas com baixo acoplamento (*Repository Pattern*), onde cada c
 └─────────────────────────────────────────┘
 ```
 
-> 📖 **Documentação Completa de Arquitetura:** Para detalhes sobre padrões adotados (*Service Layer*, *DTOs*, *Dependency Injection*), fluxos de dados e otimizações de índices BSON, consulte o documento dedicado: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+>Para detalhes sobre padrões adotados (*Service Layer*, *DTOs*, *Dependency Injection*), fluxos de dados e otimizações de índices BSON, consulte o documento dedicado: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ---
 
@@ -85,6 +85,7 @@ classificador-avaliacoes/
 ├─ AGENTS.md                  # Guia e diretrizes para agentes de IA
 ├─ .env.example               # Modelo de variáveis de ambiente
 ├─ docs/
+│  ├─ adr/                    # Registros de Decisões de Arquitetura (ADRs)
 │  ├─ ARCHITECTURE.md         # Especificação arquitetural detalhada
 │  ├─ ROADMAP_V2.md           # Planejamento completo da Versão 2
 │  └─ images/                 # Imagens e capturas de tela da documentação
@@ -257,6 +258,7 @@ Usuário → Interface → API (FastAPI) → Serviço de classificação → mod
 * **Injeção de Dependências (`Depends`):** Desacoplamento para testes com mocks em memória sem necessidade do MongoDB ativo.
 
 Consulte o planejamento detalhado, schemas e contrato dos endpoints em: **[docs/ROADMAP_V2.md](docs/ROADMAP_V2.md)**.
+Explore todas as decisões arquiteturais e trade-offs em: **[docs/adr/](docs/adr/)**.
 
 ---
 

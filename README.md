@@ -69,7 +69,7 @@ Layered architecture with loose coupling (*Repository Pattern*), where each comp
 └─────────────────────────────────────────┘
 ```
 
-> 📖 **Comprehensive Architecture Documentation:** For complete specifications on design patterns (*Service Layer*, *DTOs*, *Dependency Injection*), data flows, and BSON indexing strategies, refer to **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+>  For complete specifications on design patterns (*Service Layer*, *DTOs*, *Dependency Injection*), data flows, and BSON indexing strategies, refer to **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ---
 
@@ -85,6 +85,7 @@ classificador-avaliacoes/
 ├─ AGENTS.md                  # Operational guidelines for AI coding agents
 ├─ .env.example               # Environment variables template
 ├─ docs/
+│  ├─ adr/                    # Architecture Decision Records (ADRs)
 │  ├─ ARCHITECTURE.md         # Detailed architectural specifications
 │  ├─ ROADMAP_V2.md           # Full Version 2 implementation roadmap
 │  └─ images/                 # Documentation screenshots and assets
@@ -257,6 +258,7 @@ User → Interface → API (FastAPI) → Classification Service → Model (.jobl
 * **Dependency Injection (`Depends`):** Enables isolated unit and integration testing with in-memory mocks.
 
 See the full specification, data schemas, and endpoint contracts in: **[docs/ROADMAP_V2.md](docs/ROADMAP_V2.md)**.
+Explore architectural decisions and trade-offs in: **[docs/adr/](docs/adr/)**.
 
 ---
 
