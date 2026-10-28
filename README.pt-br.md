@@ -25,8 +25,20 @@ Sistema de Machine Learning pronto para produção que classifica avaliações d
 ## Interfaces Web (Streamlit)
 
 O projeto conta com duas camadas de apresentação visual web:
-1. **Interface de Inferência em Tempo Real (`src/interface/app.py`):** Permite que usuários submetam avaliações e recebam a predição de sentimento, métrica de certeza e gravação no banco instantaneamente.
-2. **Dashboard Analítico de BI (`src/interface/dashboard.py`):** Consolida KPIs de negócio, ranking de produtos com maior insatisfação, série temporal de sentimento e histórico das últimas avaliações registradas.
+
+### 1. Classificação de Sentimento em Tempo Real (`src/interface/app.py`)
+Permite que o usuário submeta avaliações avulsas e receba a predição de sentimento, a barra de confiança calibrada e a persistência no MongoDB em tempo real:
+
+<p align="center">
+  <img src="docs/images/interface.png" alt="Interface de Classificação de Avaliações em Tempo Real" width="850"/>
+</p>
+
+### 2. Dashboard Analítico de BI (`src/interface/dashboard.py`)
+Monitora KPIs analíticos, ranking de produtos com maior insatisfação, série temporal de evolução mensal e histórico das avaliações recentes:
+
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="Dashboard Analítico Streamlit" width="850"/>
+</p>
 
 ---
 

@@ -25,8 +25,20 @@ Production-ready Machine Learning system that classifies Portuguese product revi
 ## Web Interfaces (Streamlit)
 
 The system provides two distinct web presentation layers:
-1. **Real-Time Inference Interface (`src/interface/app.py`):** Allows end users to type a product review and receive real-time sentiment prediction, confidence metrics, and database persistence.
-2. **Analytical BI Dashboard (`src/interface/dashboard.py`):** Aggregates business KPIs, ranks products with highest negative feedback, tracks temporal sentiment distribution, and lists recent reviews.
+
+### 1. Real-Time Sentiment Classification (`src/interface/app.py`)
+Allows end users to submit customer reviews and receive real-time sentiment predictions, confidence score gauges, and database persistence:
+
+<p align="center">
+  <img src="docs/images/interface.png" alt="Real-Time Sentiment Classification Interface" width="850"/>
+</p>
+
+### 2. Analytical BI Dashboard (`src/interface/dashboard.py`)
+Monitors high-level operational KPIs, dissatisfied product rankings, monthly sentiment evolution, and a real-time recent review activity feed:
+
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="Streamlit Analytical BI Dashboard" width="850"/>
+</p>
 
 ---
 
