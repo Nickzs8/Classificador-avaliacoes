@@ -109,9 +109,100 @@ review-classifier/
 
 ---
 
-## Guia de Execução Rápida (Makefile)
+## Como Iniciar o Projeto do Zero
 
-O projeto conta com um **GNU Makefile** para simplificar todos os fluxos de trabalho com comandos de 1 linha:
+Siga este passo a passo estruturado para clonar, configurar o ambiente, subir o banco de dados, treinar o modelo e iniciar as aplicações do zero:
+
+### 1. Pré-requisitos
+Certifique-se de ter instalado em sua máquina:
+* **Python 3.11+** (`python3 --version`)
+* **Docker & Docker Compose** (`docker compose version`)
+* **Git** (`git --version`)
+* *(Opcional, recomendado)* **GNU Make** (`make --version`)
+
+### 2. Clonar o Repositório
+```bash
+git clone https://github.com/Nickzs8/review-classifier.git
+cd review-classifier
+```
+
+### 3. Criar e Ativar o Ambiente Virtual (`.venv`)
+```bash
+# Cria o ambiente virtual
+python3 -m venv .venv
+
+# Ativa o ambiente no Linux / macOS:
+source .venv/bin/activate
+
+# (Alternativa no Windows PowerShell: .venv\Scripts\Activate.ps1)
+```
+
+### 4. Instalar as Dependências
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 5. Configurar as Variáveis de Ambiente
+Copie o arquivo de exemplo para gerar o `.env` local:
+```bash
+cp .env.example .env
+```
+*(A configuração padrão já aponta para `localhost:27017` com banco `reviews_db` e coleção `reviews`).*
+
+### 6. Iniciar a Infraestrutura do MongoDB
+Suba o contêiner do MongoDB 8.2 em segundo plano:
+```bash
+make up
+# ou diretamente via Docker Compose:
+docker compose up -d
+```
+Verifique se o contêiner está ativo e saudável:
+```bash
+docker compose ps
+```
+
+### 7. Executar a Esteira Completa de Dados & Machine Learning
+Execute a pipeline de 4 etapas que prepara os dados, ingere no MongoDB, treina o modelo NLP e classifica as avaliações pendentes:
+```bash
+make pipeline
+# ou diretamente via Python:
+python run_pipeline.py
+```
+> **O que esta etapa executa:**
+> 1. `src/prepare_data.py`: Higieniza o CSV bruto e extrai amostra balanceada de 20.000 avaliações.
+> 2. `src/ingest.py`: Serializa documentos BSON no MongoDB e cria índices otimizados.
+> 3. `src/train.py`: Treina o classificador TF-IDF + Regressão Logística (~93% de acurácia) e exporta `models/modelo_v1.joblib`.
+> 4. `src/predict.py`: Realiza predição em lote nas 2.000 avaliações sem rótulo e audita a acurácia (92.7%).
+
+### 8. Rodar a Suíte de Testes Automatizados
+Valide a integridade do código e a garantia de isolamento total de banco com:
+```bash
+make test
+# ou:
+pytest -v
+```
+
+### 9. Iniciar as Aplicações
+Escolha como prefere rodar os serviços:
+
+* **Opção A: Rodar a Stack Completa (API + Interface Web em paralelo)**
+  ```bash
+  make dev
+  ```
+  * Backend API: [http://localhost:8000](http://localhost:8000) (Swagger: [/docs](http://localhost:8000/docs))
+  * Interface Web do Cliente: [http://localhost:8501](http://localhost:8501)
+
+* **Opção B: Rodar os Serviços Individualmente**
+  * **Servidor FastAPI:** `make api` (ou `uvicorn api.main:app --reload --app-dir src`)
+  * **Interface Web de Avaliações:** `make ui` (ou `streamlit run src/interface/app.py`)
+  * **Dashboard Analítico de BI:** `make dashboard` (ou `streamlit run src/interface/dashboard.py`)
+
+---
+
+## Referência de Comandos do Makefile
+
+Para o fluxo diário de desenvolvimento, o **GNU Makefile** oferece atalhos convenientes de 1 linha:
 
 | Comando | Ação |
 |---|---|
@@ -122,18 +213,14 @@ O projeto conta com um **GNU Makefile** para simplificar todos os fluxos de trab
 | **`make test`** | Executa a suíte de 39 testes automatizados (~1.5s) |
 | **`make up`** | Sobe o contêiner do MongoDB em segundo plano |
 | **`make down`** | Para os contêineres do MongoDB |
-| **`make pipeline`** | Executa a esteira de dados (preparar -> ingerir -> treinar) |
+| **`make pipeline`** | Executa a esteira de dados (preparar -> ingerir -> treinar -> predizer) |
 | **`make help`** | Exibe a lista completa de comandos |
 
 > [!NOTE]
 > **Compatibilidade com Windows:** O utilitário `make` é nativo de ambientes Linux e macOS. Em ambientes Windows puros (PowerShell / Prompt de Comando), o comando `make` não vem instalado por padrão. Usuários de Windows podem:
 > 1. Utilizar o **WSL (Windows Subsystem for Linux)** ou o terminal do **Git Bash**.
 > 2. Instalar o GNU Make via gerenciador de pacotes como **Chocolatey** (`choco install make`) ou **Winget**.
-> 3. Ou executar os comandos originais do Python diretamente:
->    * API: `uvicorn api.main:app --reload --app-dir src`
->    * Interface: `streamlit run src/interface/app.py`
->    * Dashboard: `streamlit run src/interface/dashboard.py`
->    * Testes: `pytest -v`
+> 3. Ou executar os comandos originais do Python/Docker demonstrados no passo a passo acima.
 
 ---
 

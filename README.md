@@ -109,9 +109,100 @@ review-classifier/
 
 ---
 
-## Quickstart & Execution (Makefile)
+## Getting Started from Scratch
 
-The project includes a **GNU Makefile** providing simple, single-command workflows:
+Follow this step-by-step walkthrough to clone, configure, bootstrap the database, train the model, and launch the applications from scratch.
+
+### 1. Prerequisites
+Ensure you have the following installed on your host machine:
+* **Python 3.11+** (`python3 --version`)
+* **Docker & Docker Compose** (`docker compose version`)
+* **Git** (`git --version`)
+* *(Optional, recommended)* **GNU Make** (`make --version`)
+
+### 2. Clone the Repository
+```bash
+git clone https://github.com/Nickzs8/review-classifier.git
+cd review-classifier
+```
+
+### 3. Create and Activate Virtual Environment
+```bash
+# Create Python virtual environment
+python3 -m venv .venv
+
+# Activate environment (Linux / macOS)
+source .venv/bin/activate
+
+# (Windows PowerShell alternative: .venv\Scripts\Activate.ps1)
+```
+
+### 4. Install Dependencies
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 5. Configure Environment Variables
+Copy the example environment configuration to create your local `.env`:
+```bash
+cp .env.example .env
+```
+*(The default configuration points to `localhost:27017` with database `reviews_db` and collection `reviews`).*
+
+### 6. Start MongoDB Database
+Start the MongoDB 8.2 container in the background:
+```bash
+make up
+# or directly via Docker Compose:
+docker compose up -d
+```
+Verify the container is healthy:
+```bash
+docker compose ps
+```
+
+### 7. Run the End-to-End Data & ML Pipeline
+Execute the 4-stage pipeline that prepares data, ingests into MongoDB, trains the NLP model, and classifies pending reviews:
+```bash
+make pipeline
+# or directly:
+python run_pipeline.py
+```
+> **What this executes:**
+> 1. `src/prepare_data.py`: Cleans raw review CSV and samples 20,000 rows.
+> 2. `src/ingest.py`: Serializes BSON documents into MongoDB and provisions indexes.
+> 3. `src/train.py`: Trains TF-IDF + Logistic Regression model (~93% accuracy) and exports `models/modelo_v1.joblib`.
+> 4. `src/predict.py`: Performs batch inference on the 10% unlabeled reviews and audits evaluation accuracy (92.7%).
+
+### 8. Run Automated Tests
+Verify that all 39 tests pass with 100% database isolation:
+```bash
+make test
+# or:
+pytest -v
+```
+
+### 9. Launch the Applications
+Choose how you want to run the services:
+
+* **Option A: Run Full Stack (API + Customer UI in parallel)**
+  ```bash
+  make dev
+  ```
+  * Backend API: [http://localhost:8000](http://localhost:8000) (Swagger Docs: [/docs](http://localhost:8000/docs))
+  * Customer Review UI: [http://localhost:8501](http://localhost:8501)
+
+* **Option B: Run Services Individually**
+  * **FastAPI Server:** `make api` (or `uvicorn api.main:app --reload --app-dir src`)
+  * **Customer Review Web App:** `make ui` (or `streamlit run src/interface/app.py`)
+  * **Analytical BI Dashboard:** `make dashboard` (or `streamlit run src/interface/dashboard.py`)
+
+---
+
+## Makefile Command Reference
+
+For routine development workflows, the **GNU Makefile** provides convenient one-liners:
 
 | Command | Action |
 |---|---|
@@ -122,18 +213,14 @@ The project includes a **GNU Makefile** providing simple, single-command workflo
 | **`make test`** | Run complete automated test suite (39 tests in ~1.5s) |
 | **`make up`** | Start MongoDB container in background |
 | **`make down`** | Stop MongoDB container |
-| **`make pipeline`** | Run data pipeline (prepare -> ingest -> train) |
+| **`make pipeline`** | Run data pipeline (prepare -> ingest -> train -> predict) |
 | **`make help`** | Display all available commands |
 
 > [!NOTE]
 > **Windows Compatibility:** `make` is native to Linux and macOS. On native Windows environments (PowerShell / Command Prompt), the `make` utility is not available by default. Windows developers can:
 > 1. Use **WSL (Windows Subsystem for Linux)** or **Git Bash**.
 > 2. Install GNU Make via a package manager like **Chocolatey** (`choco install make`) or **Winget**.
-> 3. Or run the underlying Python commands directly:
->    * API: `uvicorn api.main:app --reload --app-dir src`
->    * Interface: `streamlit run src/interface/app.py`
->    * Dashboard: `streamlit run src/interface/dashboard.py`
->    * Tests: `pytest -v`
+> 3. Or run the underlying Python/Docker commands shown in the step-by-step guide above.
 
 ---
 

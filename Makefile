@@ -21,7 +21,7 @@ help:
 	@echo "  make up         Start the MongoDB container (Docker)"
 	@echo "  make down       Stop the MongoDB container"
 	@echo "  make status     Check status of Docker containers"
-	@echo "  make pipeline   Run the data preparation, ingest, and training pipeline"
+	@echo "  make pipeline   Run data pipeline (prepare -> ingest -> train -> predict)"
 	@echo ""
 
 ## Start MongoDB in background
@@ -57,6 +57,6 @@ dev: up
 	@echo "Starting backend API and web interface..."
 	@$(MAKE) -j 2 api ui
 
-## Run data pipeline (prepare -> ingest -> train)
+## Run data pipeline (prepare -> ingest -> train -> predict)
 pipeline: up
 	$(PYTHON) run_pipeline.py
