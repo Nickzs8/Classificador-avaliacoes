@@ -1,4 +1,4 @@
-# Classificador de Avaliações com MongoDB
+# Classificador de Avaliações com MongoDB & FastAPI
 
 <p align="center">
   <a href="README.md">English</a> | <b>Português</b>
@@ -6,70 +6,78 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.11+-blue.svg" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/FastAPI-0.162.0-009688.svg?logo=fastapi&logoColor=white" alt="FastAPI">
   <img src="https://img.shields.io/badge/MongoDB-8.2-green.svg" alt="MongoDB 8.2">
   <img src="https://img.shields.io/badge/Docker-compose-2496ED.svg?logo=docker&logoColor=white" alt="Docker">
-  <img src="https://img.shields.io/badge/Tests-20%20passed-brightgreen.svg" alt="Pytest">
+  <img src="https://img.shields.io/badge/Tests-39%20passed-brightgreen.svg" alt="Pytest">
   <img src="https://img.shields.io/badge/Streamlit-1.35+-FF4B4B.svg?logo=streamlit&logoColor=white" alt="Streamlit">
-  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
+  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="Licença: MIT">
 </p>
 
-Projeto de IA em Python que classifica avaliações de produtos em português como **positivas** ou **negativas**, utilizando o **MongoDB** como armazenamento analítico central para textos brutos, metadados e predições em lote.
+Sistema de Machine Learning pronto para produção que classifica avaliações de produtos em português como **positivas** ou **negativas**, contando com:
+* **Esteira Analítica em Lote:** Higieniza, rotula e ingere mais de 20.000 documentos no **MongoDB 8.2**, com treinamento automatizado de modelo Scikit-Learn e pipelines de agregação analítica.
+* **API REST em Tempo Real:** Desenvolvida com **FastAPI**, rotas síncronas em threadpool (*non-blocking event loop*), validação rigorosa de contratos com Pydantic V2 e documentação OpenAPI interativa.
+* **Apresentação Web Interativa:** Construída em **Streamlit** com inferência de sentimento em tempo real para o cliente e dashboard analítico de BI.
+* **Ergonomia para Desenvolvedores:** Gerenciamento unificado via **GNU Makefile** (`make dev`, `make api`, `make ui`, `make test`).
 
 ---
 
-## Dashboard Interativo (Streamlit)
+## Interfaces Web (Streamlit)
 
-O projeto conta com uma interface gráfica construída em Streamlit para visualização dos KPIs analíticos, ranking de produtos com maior insatisfação e série temporal:
-
-<!-- ESPAÇO PARA O PRINT DO DASHBOARD: Salve o print da tela em docs/images/dashboard.png -->
-<p align="center">
-  <img src="docs/images/dashboard.png" alt="Prévia do Dashboard Streamlit" width="850"/>
-</p>
-
----
-
-## Como funciona
-
-1. **Ingestão:** As avaliações de e-commerce são carregadas no MongoDB como documentos semiestruturados.
-2. **Treinamento:** Documentos previamente rotulados são utilizados para treinar um pipeline de NLP (TF-IDF + Regressão Logística).
-3. **Classificação em Lote:** O modelo infere o sentimento dos documentos sem rótulo (dados simulando produção).
-4. **Gravação Retroativa:** A predição (classe, confiança, versão e data) é gravada de volta no próprio documento via `UpdateOne`.
-5. **Agregações Analíticas:** Pipelines de agregação do MongoDB consolidam métricas de negócio (ex.: ranking de insatisfação por produto e evolução mensal de sentimento).
+O projeto conta com duas camadas de apresentação visual web:
+1. **Interface de Inferência em Tempo Real (`src/interface/app.py`):** Permite que usuários submetam avaliações e recebam a predição de sentimento, métrica de certeza e gravação no banco instantaneamente.
+2. **Dashboard Analítico de BI (`src/interface/dashboard.py`):** Consolida KPIs de negócio, ranking de produtos com maior insatisfação, série temporal de sentimento e histórico das últimas avaliações registradas.
 
 ---
 
 ## Stack Tecnológica
 
-| Parte | Ferramenta | Finalidade |
+| Camada | Ferramenta | Finalidade |
 |---|---|---|
-| **Linguagem** | Python 3.11+ | Desenvolvimento de serviços e scripts |
-| **Banco de Dados** | MongoDB 8.2 (Docker) | Armazenamento flexível e aggregation pipelines |
-| **Acesso ao Banco** | PyMongo | Driver oficial de conexão e operações em lote |
-| **Manipulação de Dados** | Pandas | Higienização, amostragem e reshaping (`pivot`) |
-| **Machine Learning** | Scikit-Learn & Joblib | Pipeline TF-IDF, Regressão Logística e serialização |
-| **Testes Automatizados** | Pytest | Testes unitários de rotulagem, ingestão e ML |
-| **Interface / BI** | Streamlit | Dashboard analítico web reativo |
+| **Linguagem** | Python 3.11+ | Serviços centrais, pipelines de dados e APIs |
+| **API REST** | FastAPI & Uvicorn | API REST ASGI de alta performance com documentação OpenAPI interativa |
+| **Contratos de Dados** | Pydantic V2 | Sanitização de entrada, validação de tipos e serialização de DTOs |
+| **Banco de Dados** | MongoDB 8.2 (Docker) | Armazenamento de documentos flexíveis e pipelines analíticos |
+| **Driver de Banco** | PyMongo | Driver nativo e operações em lote via Repository Pattern |
+| **Machine Learning** | Scikit-Learn & Joblib | Pipeline TF-IDF, Regressão Logística e serialização de modelos |
+| **Processamento de Dados** | Pandas | Limpeza, amostragem e reformatação tabular (`pivot`) |
+| **Cliente HTTP** | HTTPX | Cliente síncrono resiliente integrando Streamlit ao FastAPI |
+| **Apresentação Web** | Streamlit | Testador de sentimento em tempo real e dashboard analítico |
+| **Testes Automatizados** | Pytest | 39 testes com mocks em memória (`TestClient`, zero dependência de banco) |
+| **Automação** | GNU Make & Docker | Orquestração de comandos em 1 linha (`Makefile`, `docker-compose.yml`) |
 
 ---
 
 ## Arquitetura do Sistema
 
-Arquitetura em camadas com baixo acoplamento (*Repository Pattern*), onde cada componente comunica-se apenas com sua camada adjacente:
+Arquitetura em camadas desacopladas aplicando **Repository Pattern**, **Service Layer** e **Injeção de Dependências**, garantindo isolamento total entre controladores HTTP, modelo de ML e persistência:
 
 ```
-┌─────────────────────────────────────────┐
-│     Interface (Terminal / Dashboard)    │
-├─────────────────────────────────────────┤
-│  Serviços: ingestão, treino, predição,  │
-│               analytics                 │
-├─────────────────────────────────────────┤
-│  Repositório (ponto único de PyMongo)   │
-├─────────────────────────────────────────┤
-│           MongoDB (Docker)              │
-└─────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│             Camada de Apresentação (Streamlit)         │
+│   src/interface/app.py    │   src/interface/dashboard.py │
+└───────────────────────┬──────────────────────┬─────────┘
+                        │ (HTTP / httpx)       │ (Interno)
+┌───────────────────────▼────────────────┐     │
+│         Camada de API REST (FastAPI)   │     │
+│   POST /avaliacoes  │  GET /avaliacoes │     │
+└───────────────────────┬────────────────┘     │
+                        ▼                      │
+┌────────────────────────────────────────┐     │
+│     Service Layer (Classificador)      │     │
+│      Lógica Compartilhada de ML        │     │
+└───────────────────────┬────────────────┘     │
+                        ▼                      ▼
+┌────────────────────────────────────────────────────────┐
+│     Repository Layer (src/repository.py - PyMongo)     │
+└───────────────────────────────┬────────────────────────┘
+                                ▼
+┌────────────────────────────────────────────────────────┐
+│               MongoDB 8.2 (Contêiner Docker)           │
+└────────────────────────────────────────────────────────┘
 ```
 
->Para detalhes sobre padrões adotados (*Service Layer*, *DTOs*, *Dependency Injection*), fluxos de dados e otimizações de índices BSON, consulte o documento dedicado: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+> Para diagramas detalhados, fluxos de dados e padrões de projeto, consulte **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** e os **[docs/adr/](docs/adr/)**.
 
 ---
 
@@ -77,176 +85,141 @@ Arquitetura em camadas com baixo acoplamento (*Repository Pattern*), onde cada c
 
 ```text
 classificador-avaliacoes/
-├─ docker-compose.yml         # Definição do contêiner MongoDB 8.2
-├─ run_pipeline.py            # Orquestrador da esteira de ML em um comando
-├─ requirements.txt           # Dependências do projeto
-├─ pytest.ini                 # Configuração de execução do Pytest
-├─ LICENSE                    # Licença MIT
-├─ AGENTS.md                  # Guia e diretrizes para agentes de IA
-├─ .env.example               # Modelo de variáveis de ambiente
-├─ docs/                      # Especificações de arquitetura, ADRs e roadmap
-├─ data/                      # Datasets brutos e amostras preparadas (não versionados)
-├─ models/                    # Artefatos binários dos modelos (.joblib)
-├─ src/
-│  ├─ api/                    # Camada de API REST (FastAPI: rotas, schemas e dependências)
-│  ├─ services/               # Camada de Serviço (lógica de inferência e Classificador)
-│  ├─ interface/              # Interface com o usuário (Dashboard Streamlit)
-│  ├─ repository.py           # Repositório de dados (único ponto de acesso com PyMongo)
-│  └─ *.py                    # Scripts da esteira de treinamento e análises em lote
-└─ tests/                     # Suíte de testes unitários e de integração automatizados
+├── data/              # Datasets brutos e amostras processadas (ignorado no git)
+├── docs/              # Registros de Decisões de Arquitetura (ADRs) e Roadmap do projeto
+├── models/            # Modelos de Machine Learning serializados (.joblib, ignorado)
+├── src/               # Código-fonte da aplicação
+│   ├── api/           # Camada de API REST (endpoints FastAPI, schemas Pydantic e dependências)
+│   ├── interface/     # Camada de apresentação web (UI Streamlit de classificação e dashboard de BI)
+│   └── services/      # Camada de serviços e lógica compartilhada de inferência de ML
+└── tests/             # Suíte de testes unitários e de integração automatizados (Pytest)
 ```
 
 ---
 
-## Dataset
+## Guia de Execução Rápida (Makefile)
 
-Utiliza o [B2W-Reviews01](https://github.com/b2wdigital/b2w-reviews01), um corpus aberto de mais de 130 mil avaliações de e-commerce no mercado brasileiro com notas de 1 a 5.
+O projeto conta com um **GNU Makefile** para simplificar todos os fluxos de trabalho com comandos de 1 linha:
 
-* **Colunas selecionadas:** `review_text`, `overall_rating`, `product_name`, `submission_date`.
-* **Download:** Baixe o arquivo `B2W-Reviews01.csv` do repositório oficial e salve em `data/raw/B2W-Reviews01.csv`.
-* *Nota:* O carregamento direto via CSV local é o método recomendado para evitar inconsistências de scripts em versões recentes da biblioteca `datasets`.
+| Comando | Ação |
+|---|---|
+| **`make dev`** | **Inicia a API FastAPI e a Interface Streamlit juntas em paralelo** |
+| **`make api`** | Inicia o servidor backend FastAPI com auto-reload (`http://localhost:8000`) |
+| **`make ui`** | Inicia a interface de classificação do cliente (`http://localhost:8501`) |
+| **`make dashboard`** | Inicia o dashboard analítico de métricas |
+| **`make test`** | Executa a suíte de 39 testes automatizados (~1.5s) |
+| **`make up`** | Sobe o contêiner do MongoDB em segundo plano |
+| **`make down`** | Para os contêineres do MongoDB |
+| **`make pipeline`** | Executa a esteira de dados (preparar -> ingerir -> treinar) |
+| **`make help`** | Exibe a lista completa de comandos |
 
-### Regras de Negócio e Higienização
-
-| Regra | Ação | Justificativa |
-|---|---|---|
-| **Nota 4 ou 5** | Rótulo `positivo` | Satisfação evidente do consumidor |
-| **Nota 1 ou 2** | Rótulo `negativo` | Reclamação ou problema no pedido |
-| **Nota 3** | Descartada | Opiniões neutras ou ambíguas |
-| **Textos < 10 chars ou Nulos** | Descartados | Ausência de valor semântico para NLP |
-| **Textos Duplicados** | Removidos | Prevenção de viés por spam ou repetição |
-| **Amostragem Reprodutível** | 20.000 linhas (`seed=42`) | Treino ágil e balanceamento controlado |
+> [!NOTE]
+> **Compatibilidade com Windows:** O utilitário `make` é nativo de ambientes Linux e macOS. Em ambientes Windows puros (PowerShell / Prompt de Comando), o comando `make` não vem instalado por padrão. Usuários de Windows podem:
+> 1. Utilizar o **WSL (Windows Subsystem for Linux)** ou o terminal do **Git Bash**.
+> 2. Instalar o GNU Make via gerenciador de pacotes como **Chocolatey** (`choco install make`) ou **Winget**.
+> 3. Ou executar os comandos originais do Python diretamente:
+>    * API: `uvicorn api.main:app --reload --app-dir src`
+>    * Interface: `streamlit run src/interface/app.py`
+>    * Dashboard: `streamlit run src/interface/dashboard.py`
+>    * Testes: `pytest -v`
 
 ---
 
-## Esquema do Documento no MongoDB
+## Documentação da API REST (FastAPI)
 
+Com a API em execução (`make api` ou `make dev`), acesse a documentação OpenAPI interativa:
+* **Swagger UI Interativo:** [http://localhost:8000/docs](http://localhost:8000/docs)
+* **Documentação ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
+
+### Visão Geral dos Endpoints
+
+| Método | Endpoint | Descrição | Status Code |
+|---|---|---|---|
+| `POST` | `/avaliacoes` | Submete avaliação, infere sentimento em tempo real e salva no MongoDB | `201 Created` |
+| `GET` | `/avaliacoes/{id}` | Busca avaliação por ObjectId hexadecimal do MongoDB | `200 OK` / `404 Not Found` |
+| `GET` | `/avaliacoes?limite=10` | Lista as avaliações mais recentes em ordem decrescente de data | `200 OK` |
+| `GET` | `/saude` | Healthcheck validando API, conectividade com MongoDB e modelo de ML | `200 OK` / `503 Unavailable` |
+
+### Exemplos Práticos de Consumo com `curl`
+
+#### 1. Submeter uma Avaliação (`POST /avaliacoes`)
+
+```bash
+curl -X POST "http://localhost:8000/avaliacoes" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "texto": "Entrega super rápida e o fone tem um som excelente! Recomendo muito.",
+    "produto": "Fone Bluetooth Pro"
+  }'
+```
+
+**Resposta (`201 Created`):**
 ```json
 {
-  "_id": {"$oid": "653b1e7c8f9b2a1234567890"},
-  "texto": "Chegou rápido, mas a embalagem veio amassada",
-  "produto": "Fone Bluetooth X",
-  "data": "2018-03-12T14:05:00.000Z",
-  "nota": 2,
-  "rotulo": null,
-  "rotulo_real": "negativo",
-  "predicao": {
-    "classe": "negativo",
-    "confianca": 0.71,
-    "modelo": "modelo_v1",
-    "data": "2026-10-24T14:05:00.000Z"
-  }
+  "id": "6720d2a1e4b0a1d2c3e4f5b2",
+  "texto": "Entrega super rápida e o fone tem um som excelente! Recomendo muito.",
+  "produto": "Fone Bluetooth Pro",
+  "classe": "positivo",
+  "confianca": 0.965,
+  "modelo": "modelo_v1",
+  "data": "2026-10-27T20:30:00Z"
 }
 ```
 
-* **Simulação de Produção:** Cerca de 10% dos documentos são ingeridos com `rotulo: null`.
-* **Auditoria:** O campo `rotulo_real` armazena o gabarito original, nunca sendo exposto durante o treino.
-* **Índices Otimizados:** Criação automática de índices nos campos `rotulo` e `produto` para acelerar agregação e busca.
+* Validação: O texto deve ter entre 3 e 2000 caracteres (retorna `422 Unprocessable Entity` se fora do intervalo).
+* Gravado com `origem: "api"`, `nota: null` e `rotulo_real: null` (garantindo que entradas da API nunca contaminem o retreino do modelo nem distorçam as métricas de acurácia global).
 
----
-
-## Como Executar
-
-### Pré-requisitos
-* Python 3.11 ou superior
-* Docker e Docker Compose
-
-> [!NOTE]
-> **Compatibilidade de Kernel Linux:** Versões de kernel 6.19+ possuem incompatibilidade com a imagem `mongo:8.0` (SERVER-121912). Este projeto adota explicitamente a imagem estável **`mongo:8.2`**.
-
-### 1. Clonar e Preparar o Ambiente
+#### 2. Buscar Avaliação por ID (`GET /avaliacoes/{id}`)
 
 ```bash
-git clone https://github.com/Nickzs8/Classificador-avaliacoes.git
-cd classificador-avaliacoes
-
-python -m venv .venv
-source .venv/bin/activate        # No Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+curl -X GET "http://localhost:8000/avaliacoes/6720d2a1e4b0a1d2c3e4f5b2"
 ```
 
-### 2. Configurar Variáveis de Ambiente
-
-Copie o arquivo de exemplo:
-```bash
-cp .env.example .env
-```
-
-Configuração padrão sugerida:
-```env
-MONGO_USER=admin
-MONGO_PASSWORD=troque_esta_senha
-MONGO_HOST=localhost
-MONGO_PORT=27017
-MONGO_DB=reviews_db
-MONGO_COLLECTION=reviews
-MODEL_PATH=models/modelo_v1.joblib
-```
-*(Evite caracteres como `$` na senha devido à interpretação de variáveis do Docker Compose).*
-
-### 3. Pipeline de Execução
-
-#### 1) Iniciar Banco e Treinar o Modelo
-Inicie o contêiner do MongoDB e execute a esteira automatizada (preparação dos dados, ingestão no banco e treinamento do modelo):
+#### 3. Listar Avaliações Recentes (`GET /avaliacoes?limite=5`)
 
 ```bash
-docker compose up -d
-python run_pipeline.py
+curl -X GET "http://localhost:8000/avaliacoes?limite=5"
 ```
 
-#### 2) Inferência em Lote e Visualização
-Com o modelo treinado, execute a inferência nas avaliações pendentes e visualize os relatórios analíticos:
+#### 4. Checagem de Saúde do Sistema (`GET /saude`)
 
 ```bash
-python src/predict.py                # Classifica documentos pendentes no MongoDB
-python src/analytics.py              # Relatório consolidado no terminal
-streamlit run src/interface/dashboard.py # Dashboard visual no navegador (ou make dashboard)
+curl -X GET "http://localhost:8000/saude"
+```
+
+**Resposta (`200 OK`):**
+```json
+{
+  "status": "ok",
+  "banco": "conectado",
+  "modelo": "carregado"
+}
 ```
 
 ---
 
 ## Testes Automatizados
 
-O projeto conta com suíte de testes unitários cobrindo regras de higienização, integridade de esquema e pipeline de aprendizado de máquina. **Os testes não dependem de conexão com o banco de dados.**
+A suíte de testes garante isolamento completo: **nenhum teste depende do MongoDB estar rodando**. O repositório e o classificador são substituídos em memória por mocks (`FakeReviewRepository` e `FakeClassificador`) via injeção de dependência (`app.dependency_overrides`).
 
 ```bash
+make test
+# ou:
 pytest -v
 ```
 
----
-
-## Métricas de Desempenho
-
-Como os dados possuem distribuição assimétrica (maior incidência de positivos), a avaliação prioriza o **F1-Score por classe** com `class_weight="balanced"`:
-
-| Classe | Precisão | Recall | F1-Score |
-|---|---|---|---|
-| **Positivo** | 0.98 | 0.93 | 0.95 |
-| **Negativo** | 0.84 | 0.94 | 0.89 |
-
-* **Comportamento do Modelo:** O recall elevado na classe negativa (0.94) assegura que a quase totalidade das insatisfações de clientes seja capturada pela esteira analítica.
-* **Generalização em Dados Não Vistos:** Acurácia de **92.7%** aferida nos 2.000 documentos não rotulados confrontados contra o `rotulo_real` (com confiança média de **92.4%** para negativos e **97.7%** para positivos).
+Resultado:
+```text
+============================== 39 passed in 1.45s ==============================
+```
 
 ---
 
-## Roadmap da V2: Inferência em Tempo Real com API REST
+## Registros de Decisões de Arquitetura (ADRs)
 
-Na **V2**, o projeto evolui da classificação em lote para permitir que o usuário envie avaliações externas em tempo real via **FastAPI** e receba a predição instantaneamente:
+Todas as decisões arquiteturais fundamentais, escolhas tecnológicas e compensações (*trade-offs*) do projeto estão documentadas no padrão MADR (*Markdown Any Decision Records*).
 
-```
-Usuário → Interface → API (FastAPI) → Serviço de classificação → modelo (.joblib)
-                          │
-                          └→ ReviewRepository → MongoDB (salva a avaliação já classificada)
-```
-
-### Principais Decisões de Arquitetura (ADR)
-* **FastAPI + Uvicorn:** Validação automática com Pydantic e documentação OpenAPI em `/docs`.
-* **Rotas síncronas (`def`):** Proteção do event loop delegando chamadas bloqueantes do `pymongo` e `scikit-learn` ao pool de threads.
-* **Service Layer (`services/classificador.py`):** Lógica de predição compartilhada entre batch e API sem duplicação de código.
-* **Injeção de Dependências (`Depends`):** Desacoplamento para testes com mocks em memória sem necessidade do MongoDB ativo.
-
-Consulte o planejamento detalhado, schemas e contrato dos endpoints em: **[docs/ROADMAP_V2.md](docs/ROADMAP_V2.md)**.
-Explore todas as decisões arquiteturais e trade-offs em: **[docs/adr/](docs/adr/)**.
+Para consultar a tabela consolidada com o sumário de todas as decisões, status e escopos, consulte o **[Índice de Registros de Decisões de Arquitetura](docs/adr/README.md)**.
 
 ---
 

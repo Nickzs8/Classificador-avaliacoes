@@ -1,4 +1,4 @@
-# Review Classifier with MongoDB
+# Review Classifier with MongoDB & FastAPI
 
 <p align="center">
   <b>English</b> | <a href="README.pt-br.md">Português</a>
@@ -6,35 +6,27 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.11+-blue.svg" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/FastAPI-0.162.0-009688.svg?logo=fastapi&logoColor=white" alt="FastAPI">
   <img src="https://img.shields.io/badge/MongoDB-8.2-green.svg" alt="MongoDB 8.2">
   <img src="https://img.shields.io/badge/Docker-compose-2496ED.svg?logo=docker&logoColor=white" alt="Docker">
-  <img src="https://img.shields.io/badge/Tests-20%20passed-brightgreen.svg" alt="Pytest">
+  <img src="https://img.shields.io/badge/Tests-39%20passed-brightgreen.svg" alt="Pytest">
   <img src="https://img.shields.io/badge/Streamlit-1.35+-FF4B4B.svg?logo=streamlit&logoColor=white" alt="Streamlit">
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
 </p>
 
-Python AI project that classifies Portuguese product reviews as **positive** or **negative**, using **MongoDB** as a central analytical storage for raw texts, metadata, and batch predictions.
+Production-ready Machine Learning system that classifies Portuguese product reviews as **positive** or **negative**, featuring:
+* **Batch Analytics Pipeline:** Cleans, labels, and loads over 20,000 documents into **MongoDB 8.2**, with automated Scikit-Learn model training and aggregation pipelines.
+* **Real-Time REST API:** Powered by **FastAPI** with synchronous threadpool routes, Pydantic V2 DTO validation, and OpenAPI documentation.
+* **Interactive Web Presentation:** Built with **Streamlit** for real-time customer review inference and business intelligence analytics.
+* **Developer Ergonomics:** Managed via native **GNU Makefile** (`make dev`, `make api`, `make ui`, `make test`).
 
 ---
 
-## Interactive Dashboard (Streamlit)
+## Web Interfaces (Streamlit)
 
-The project features a graphical user interface built with Streamlit for monitoring analytical KPIs, ranking products with the highest customer dissatisfaction, and tracking time series:
-
-<!-- SPACE FOR DASHBOARD SCREENSHOT: Saved in docs/images/dashboard.png -->
-<p align="center">
-  <img src="docs/images/dashboard.png" alt="Streamlit Dashboard Preview" width="850"/>
-</p>
-
----
-
-## How it works
-
-1. **Ingestion:** E-commerce reviews are loaded into MongoDB as semi-structured documents.
-2. **Training:** Previously labeled documents are used to train an NLP pipeline (TF-IDF + Logistic Regression).
-3. **Batch Classification:** The model predicts the sentiment of unlabeled documents (simulating production data).
-4. **Retroactive Storage:** The prediction (class, confidence, version, and timestamp) is saved back into the original document via `UpdateOne`.
-5. **Analytical Aggregations:** MongoDB aggregation pipelines compute business metrics (e.g., dissatisfaction ranking per product and monthly sentiment trends).
+The system provides two distinct web presentation layers:
+1. **Real-Time Inference Interface (`src/interface/app.py`):** Allows end users to type a product review and receive real-time sentiment prediction, confidence metrics, and database persistence.
+2. **Analytical BI Dashboard (`src/interface/dashboard.py`):** Aggregates business KPIs, ranks products with highest negative feedback, tracks temporal sentiment distribution, and lists recent reviews.
 
 ---
 
@@ -42,34 +34,50 @@ The project features a graphical user interface built with Streamlit for monitor
 
 | Layer | Tool | Purpose |
 |---|---|---|
-| **Language** | Python 3.11+ | Backend services and data scripts |
-| **Database** | MongoDB 8.2 (Docker) | Flexible document store and aggregation pipelines |
-| **Database Driver** | PyMongo | Official connection driver and bulk operations |
-| **Data Processing** | Pandas | Data cleaning, sampling, and reshaping (`pivot`) |
-| **Machine Learning** | Scikit-Learn & Joblib | TF-IDF pipeline, Logistic Regression, and serialization |
-| **Automated Testing** | Pytest | Unit tests for data labeling, ingestion, and ML |
-| **Interface / BI** | Streamlit | Reactive web analytical dashboard |
+| **Language** | Python 3.11+ | Core services, data pipelines, and APIs |
+| **REST API** | FastAPI & Uvicorn | High-performance ASGI REST API with auto-generated OpenAPI docs |
+| **Data Contracts** | Pydantic V2 | Input sanitization, strict schema validation, and serialization |
+| **Database** | MongoDB 8.2 (Docker) | Flexible document store and analytical aggregation pipelines |
+| **Database Driver** | PyMongo | Native connection driver and bulk operations (Repository Pattern) |
+| **Machine Learning** | Scikit-Learn & Joblib | TF-IDF vectorization, Logistic Regression, and model serialization |
+| **Data Processing** | Pandas | Data sanitization, sampling, and reshaping (`pivot`) |
+| **HTTP Client** | HTTPX | Resilient synchronous client connecting Streamlit to FastAPI |
+| **Web Presentation** | Streamlit | Real-time sentiment tester and analytical business dashboard |
+| **Testing** | Pytest | 39 automated tests with in-memory mocks (`TestClient`, zero DB dependency) |
+| **Developer Tooling** | GNU Make & Docker | Single-command workflow orchestration (`Makefile`, `docker-compose.yml`) |
 
 ---
 
 ## System Architecture
 
-Layered architecture with loose coupling (*Repository Pattern*), where each component interacts only with its adjacent layer:
+Layered architecture enforcing the **Repository Pattern**, **Service Layer**, and **Dependency Injection**, ensuring zero coupling between HTTP controllers, ML models, and persistence:
 
 ```
-┌─────────────────────────────────────────┐
-│     Interface (Terminal / Dashboard)    │
-├─────────────────────────────────────────┤
-│   Services: ingestion, train, predict,  │
-│               analytics                 │
-├─────────────────────────────────────────┤
-│  Repository (single point of PyMongo)   │
-├─────────────────────────────────────────┤
-│           MongoDB (Docker)              │
-└─────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│             Presentation Layer (Streamlit)             │
+│   src/interface/app.py    │   src/interface/dashboard.py │
+└───────────────────────┬──────────────────────┬─────────┘
+                        │ (HTTP / httpx)       │ (Internal)
+┌───────────────────────▼────────────────┐     │
+│         REST API Layer (FastAPI)       │     │
+│   POST /avaliacoes  │  GET /avaliacoes │     │
+└───────────────────────┬────────────────┘     │
+                        ▼                      │
+┌────────────────────────────────────────┐     │
+│     Service Layer (Classificador)      │     │
+│       Shared ML Inference Logic        │     │
+└───────────────────────┬────────────────┘     │
+                        ▼                      ▼
+┌────────────────────────────────────────────────────────┐
+│     Repository Layer (src/repository.py - PyMongo)     │
+└───────────────────────────────┬────────────────────────┘
+                                ▼
+┌────────────────────────────────────────────────────────┐
+│               MongoDB 8.2 (Docker Container)           │
+└────────────────────────────────────────────────────────┘
 ```
 
->  For complete specifications on design patterns (*Service Layer*, *DTOs*, *Dependency Injection*), data flows, and BSON indexing strategies, refer to **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+> For deep architectural specifications, data flows, and design patterns, refer to **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** and **[docs/adr/](docs/adr/)**.
 
 ---
 
@@ -77,176 +85,141 @@ Layered architecture with loose coupling (*Repository Pattern*), where each comp
 
 ```text
 classificador-avaliacoes/
-├─ docker-compose.yml         # MongoDB 8.2 container definition
-├─ run_pipeline.py            # End-to-end ML training pipeline orchestrator
-├─ requirements.txt           # Project dependencies
-├─ pytest.ini                 # Pytest runner configuration
-├─ LICENSE                    # MIT License
-├─ AGENTS.md                  # Operational guidelines for AI coding agents
-├─ .env.example               # Environment variables template
-├─ docs/                      # Architecture specifications, ADRs, and roadmap
-├─ data/                      # Raw datasets and processed samples (not versioned)
-├─ models/                    # Serialized machine learning models (.joblib)
-├─ src/
-│  ├─ api/                    # REST API layer (FastAPI routes, schemas, and dependencies)
-│  ├─ services/               # Service Layer (inference logic and Classificador)
-│  ├─ interface/              # User interface components (Streamlit dashboard)
-│  ├─ repository.py           # Data access repository (single PyMongo entry point)
-│  └─ *.py                    # Batch training and analytics pipeline scripts
-└─ tests/                     # Automated unit and integration test suite (Pytest)
+├── data/              # Raw datasets and processed sample artifacts (gitignored)
+├── docs/              # Architectural Decision Records (ADRs), specs, and roadmap
+├── models/            # Serialized machine learning models (.joblib, gitignored)
+├── src/               # Application source code
+│   ├── api/           # REST API layer (FastAPI routes, Pydantic schemas, and dependencies)
+│   ├── interface/     # Web presentation layer (Streamlit customer UI and BI dashboard)
+│   └── services/      # Business logic and shared ML inference service layer
+└── tests/             # Automated unit and integration test suite (Pytest)
 ```
 
 ---
 
-## Dataset
+## Quickstart & Execution (Makefile)
 
-Uses [B2W-Reviews01](https://github.com/b2wdigital/b2w-reviews01), an open corpus of over 130,000 Brazilian e-commerce reviews with user ratings from 1 to 5.
+The project includes a **GNU Makefile** providing simple, single-command workflows:
 
-* **Selected columns:** `review_text`, `overall_rating`, `product_name`, `submission_date`.
-* **Download:** Download `B2W-Reviews01.csv` from the official repository and save it to `data/raw/B2W-Reviews01.csv`.
-* *Note:* Direct loading via local CSV is recommended to avoid dataset loader script incompatibilities in recent versions of Hugging Face's `datasets`.
+| Command | Action |
+|---|---|
+| **`make dev`** | **Run backend API and Streamlit UI concurrently in parallel** |
+| **`make api`** | Start FastAPI backend server with auto-reload (`http://localhost:8000`) |
+| **`make ui`** | Start Streamlit customer review UI (`http://localhost:8501`) |
+| **`make dashboard`** | Start Streamlit analytical metrics dashboard |
+| **`make test`** | Run complete automated test suite (39 tests in ~1.5s) |
+| **`make up`** | Start MongoDB container in background |
+| **`make down`** | Stop MongoDB container |
+| **`make pipeline`** | Run data pipeline (prepare -> ingest -> train) |
+| **`make help`** | Display all available commands |
 
-### Business Rules & Data Sanitization
-
-| Rule | Action | Rationale |
-|---|---|---|
-| **Rating 4 or 5** | Label `positivo` (positive) | Clear customer satisfaction |
-| **Rating 1 or 2** | Label `negativo` (negative) | Customer complaint or order issue |
-| **Rating 3** | Dropped | Neutral or ambiguous reviews |
-| **Texts < 10 chars or Null** | Dropped | Insufficient semantic information for NLP |
-| **Duplicate Texts** | Removed | Prevention of spam or repetition bias |
-| **Reproducible Sample** | 20,000 rows (`seed=42`) | Fast training and controlled class distribution |
+> [!NOTE]
+> **Windows Compatibility:** `make` is native to Linux and macOS. On native Windows environments (PowerShell / Command Prompt), the `make` utility is not available by default. Windows developers can:
+> 1. Use **WSL (Windows Subsystem for Linux)** or **Git Bash**.
+> 2. Install GNU Make via a package manager like **Chocolatey** (`choco install make`) or **Winget**.
+> 3. Or run the underlying Python commands directly:
+>    * API: `uvicorn api.main:app --reload --app-dir src`
+>    * Interface: `streamlit run src/interface/app.py`
+>    * Dashboard: `streamlit run src/interface/dashboard.py`
+>    * Tests: `pytest -v`
 
 ---
 
-## MongoDB Document Schema
+## REST API Documentation (FastAPI)
 
+When the API is running (`make api` or `make dev`), access the interactive OpenAPI documentation:
+* **Interactive Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
+* **ReDoc Documentation:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
+
+### API Endpoints Overview
+
+| Method | Endpoint | Description | Status Code |
+|---|---|---|---|
+| `POST` | `/avaliacoes` | Submit review, classify sentiment in real-time, and store in MongoDB | `201 Created` |
+| `GET` | `/avaliacoes/{id}` | Retrieve review by hexadecimal MongoDB ObjectId | `200 OK` / `404 Not Found` |
+| `GET` | `/avaliacoes?limite=10` | List recent reviews sorted by creation date descending | `200 OK` |
+| `GET` | `/saude` | Healthcheck validating API, database connectivity, and ML model | `200 OK` / `503 Unavailable` |
+
+### Practical `curl` Examples
+
+#### 1. Submit a Customer Review (`POST /avaliacoes`)
+
+```bash
+curl -X POST "http://localhost:8000/avaliacoes" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "texto": "Entrega super rápida e o fone tem um som excelente! Recomendo muito.",
+    "produto": "Fone Bluetooth Pro"
+  }'
+```
+
+**Response (`201 Created`):**
 ```json
 {
-  "_id": {"$oid": "653b1e7c8f9b2a1234567890"},
-  "texto": "Chegou rápido, mas a embalagem veio amassada",
-  "produto": "Fone Bluetooth X",
-  "data": "2018-03-12T14:05:00.000Z",
-  "nota": 2,
-  "rotulo": null,
-  "rotulo_real": "negativo",
-  "predicao": {
-    "classe": "negativo",
-    "confianca": 0.71,
-    "modelo": "modelo_v1",
-    "data": "2026-10-24T14:05:00.000Z"
-  }
+  "id": "6720d2a1e4b0a1d2c3e4f5b2",
+  "texto": "Entrega super rápida e o fone tem um som excelente! Recomendo muito.",
+  "produto": "Fone Bluetooth Pro",
+  "classe": "positivo",
+  "confianca": 0.965,
+  "modelo": "modelo_v1",
+  "data": "2026-10-27T20:30:00Z"
 }
 ```
 
-* **Production Simulation:** Approximately 10% of documents are ingested with `rotulo: null`.
-* **Auditing:** The `rotulo_real` field stores the ground truth and is never exposed during training.
-* **Optimized Indexes:** Automatic index creation on `rotulo` and `produto` fields for fast query and aggregation performance.
+* Validation: Text must be between 3 and 2000 characters (returns `422 Unprocessable Entity` otherwise).
+* Stored with `origem: "api"`, `nota: null`, and `rotulo_real: null` (ensuring API inputs never contaminate model retraining or evaluation accuracy metrics).
 
----
-
-## How to Run
-
-### Prerequisites
-* Python 3.11 or higher
-* Docker and Docker Compose
-
-> [!NOTE]
-> **Linux Kernel Compatibility:** Linux kernel versions 6.19+ have a known incompatibility with the `mongo:8.0` image (SERVER-121912). This project explicitly uses the stable **`mongo:8.2`** image.
-
-### 1. Clone & Environment Setup
+#### 2. Retrieve Review by ID (`GET /avaliacoes/{id}`)
 
 ```bash
-git clone https://github.com/Nickzs8/Classificador-avaliacoes.git
-cd classificador-avaliacoes
-
-python -m venv .venv
-source .venv/bin/activate        # On Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+curl -X GET "http://localhost:8000/avaliacoes/6720d2a1e4b0a1d2c3e4f5b2"
 ```
 
-### 2. Configure Environment Variables
-
-Copy the example file:
-```bash
-cp .env.example .env
-```
-
-Suggested default configuration:
-```env
-MONGO_USER=admin
-MONGO_PASSWORD=change_this_password
-MONGO_HOST=localhost
-MONGO_PORT=27017
-MONGO_DB=reviews_db
-MONGO_COLLECTION=reviews
-MODEL_PATH=models/modelo_v1.joblib
-```
-*(Avoid using `$` characters in passwords due to Docker Compose variable interpolation).*
-
-### 3. Execution Pipeline
-
-#### 1) Start Database and Train the Model
-Start the MongoDB container and run the automated end-to-end pipeline (data preparation, MongoDB ingestion, and model training):
+#### 3. List Recent Reviews (`GET /avaliacoes?limite=5`)
 
 ```bash
-docker compose up -d
-python run_pipeline.py
+curl -X GET "http://localhost:8000/avaliacoes?limite=5"
 ```
 
-#### 2) Batch Inference and Analytics
-Once the model is trained, perform batch inference on unlabeled reviews and inspect results:
+#### 4. System Healthcheck (`GET /saude`)
 
 ```bash
-python src/predict.py                # Classifies pending documents in MongoDB
-python src/analytics.py              # Consolidated terminal tabular report
-streamlit run src/dashboard.py       # Interactive web dashboard in browser
+curl -X GET "http://localhost:8000/saude"
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "status": "ok",
+  "banco": "conectado",
+  "modelo": "carregado"
+}
 ```
 
 ---
 
 ## Automated Tests
 
-The project includes an automated unit test suite covering sanitization rules, document schema integrity, and the machine learning pipeline. **Tests do not require a running MongoDB instance.**
+The test suite enforces full test isolation: **no test requires a running MongoDB database or network access**. External dependencies are substituted with in-memory test doubles (`FakeReviewRepository` and `FakeClassificador`) via FastAPI's `app.dependency_overrides`.
 
 ```bash
+make test
+# or:
 pytest -v
 ```
 
----
-
-## Performance Metrics
-
-Due to class imbalance (higher volume of positive reviews), the evaluation focuses on **F1-Score per class** with `class_weight="balanced"`:
-
-| Class | Precision | Recall | F1-Score |
-|---|---|---|---|
-| **Positive** | 0.98 | 0.93 | 0.95 |
-| **Negative** | 0.84 | 0.94 | 0.89 |
-
-* **Model Behavior:** The high recall on negative reviews (0.94) ensures that nearly all customer dissatisfaction cases are detected by the analytics pipeline.
-* **Generalization on Unseen Data:** **92.7% accuracy** measured on the 2,000 unlabeled documents compared against `rotulo_real` (with an average confidence of **92.4%** for negatives and **97.7%** for positives).
+Output:
+```text
+============================== 39 passed in 1.45s ==============================
+```
 
 ---
 
-## V2 Roadmap: Real-Time Inference with REST API
+## Architectural Decision Records (ADRs)
 
-In **V2**, the system expands beyond batch processing to allow users to submit external reviews in real time via **FastAPI** and receive instantaneous classification:
+All foundational architectural decisions, technology selections, and trade-offs are documented in Markdown following the MADR (*Markdown Any Decision Records*) framework.
 
-```
-User → Interface → API (FastAPI) → Classification Service → Model (.joblib)
-                      │
-                      └→ ReviewRepository → MongoDB (stores the classified review)
-```
-
-### Architecture Decision Records (ADR)
-* **FastAPI + Uvicorn:** Automatic Pydantic validation and interactive OpenAPI docs at `/docs`.
-* **Synchronous Route Handlers (`def`):** Protects the event loop by running blocking `pymongo` and `scikit-learn` calls in a separate threadpool.
-* **Service Layer (`services/classificador.py`):** Centralizes inference logic shared by both batch jobs and API endpoints.
-* **Dependency Injection (`Depends`):** Enables isolated unit and integration testing with in-memory mocks.
-
-See the full specification, data schemas, and endpoint contracts in: **[docs/ROADMAP_V2.md](docs/ROADMAP_V2.md)**.
-Explore architectural decisions and trade-offs in: **[docs/adr/](docs/adr/)**.
+For the complete decision catalog, status, and architectural context, refer to the **[Architecture Decision Records Index](docs/adr/README.md)**.
 
 ---
 
