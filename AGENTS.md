@@ -1,108 +1,124 @@
-# Guia Operacional para Agentes de IA (`AGENTS.md`)
+# Operational Guide for AI Agents (`AGENTS.md`)
 
-Este documento define as diretrizes técnicas, regras de arquitetura, comandos frequentes e convenções de código que **qualquer agente de IA** (Antigravity, Cursor, Claude Code, Aider, etc.) deve seguir rigorosamente ao interagir, desenvolver ou refatorar este repositório.
-
----
-
-## 1. Visão Geral do Projeto
-
-* **Nome do Projeto:** Classificador de Avaliações
-* **Objetivo:** Ingestão, classificação de sentimento (*positivo* / *negativo*) de avaliações em português, armazenamento analítico no MongoDB e disponibilização via API REST e Dashboard.
-* **Stack Principal:** Python 3.11+, MongoDB 8.2 (Docker), PyMongo, Pandas, Scikit-Learn, Joblib, FastAPI, Streamlit e Pytest.
-* **Repositório GitHub:** `Nickzs8/Classificador-avaliacoes`
+This document defines the technical directives, architectural rules, frequent commands, and coding conventions that **any AI agent** (Antigravity, Cursor, Claude Code, Aider, etc.) must strictly adhere to when interacting with, developing, or refactoring this repository.
 
 ---
 
-## 2. Regras de Arquitetura Inegociáveis
+## 1. Project Overview
 
-1. **Repository Pattern Estrito:**
-   * **Apenas** o arquivo `src/repository.py` pode importar e utilizar o `pymongo` ou `MongoClient`.
-   * Qualquer nova consulta, inserção ou agregação analítica deve ser implementada como um método de `ReviewRepository`.
-2. **Rotas da API com `def` (Síncronas):**
-   * Como `pymongo` e `scikit-learn` realizam operações síncronas bloqueantes, **nunca declare rotas do FastAPI com `async def`** se elas invocarem o repositório ou o classificador.
-   * Use sempre `def` padrão para que o FastAPI execute as requisições no pool de threads secundárias (*threadpool*), impedindo o travamento do event loop da API.
-3. **Service Layer Compartilhado (`src/services/classificador.py`):**
-   * A inferência do modelo deve ficar centralizada no serviço `Classificador` em `src/services/`. Tanto o script batch da V1 (`predict.py`) quanto a API da V2 consomem esse mesmo serviço para evitar duplicação de lógica.
-   * O modelo `.joblib` deve ser carregado uma única vez na inicialização da aplicação, nunca a cada requisição HTTP.
-4. **Injeção de Dependências (`Depends`):**
-   * As rotas do FastAPI devem receber instâncias de `ReviewRepository` e `Classificador` via `Depends`. Isso é essencial para que os testes automatizados possam injetar mocks em memória sem subir o banco de dados.
-5. **Prevenção de Module Shadowing:**
-   * **Nunca** nomeie scripts ou módulos locais com o mesmo nome de bibliotecas instaladas (ex.: `streamlit.py`, `fastapi.py`, `pytest.py`). Use nomes descritivos como `dashboard.py` ou `app.py`.
-6. **Integridade de Esquema BSON & Agregações:**
-   * Toda avaliação gravada via API deve conter `origem: "api"`, `nota: null`, `rotulo: null` e `rotulo_real: null`.
-   * O pipeline da métrica `taxa_acerto` no repositório deve filtrar explicitamente `rotulo_real: {"$ne": null}` para que avaliações da API não sejam contabilizadas como erros na acurácia global.
+* **Project Name:** `review-classifier`
+* **Objective:** Ingestion, sentiment classification (*positive* / *negative*) of customer product reviews, analytical storage in MongoDB, and presentation via REST API and Streamlit Dashboard.
+* **Core Tech Stack:** Python 3.11+, MongoDB 8.2 (Docker), PyMongo, Pandas, Scikit-Learn, Joblib, FastAPI, Streamlit, and Pytest.
+* **GitHub Repository:** `Nickzs8/review-classifier`
 
 ---
 
-## 3. Isolamento Total dos Testes Automatizados
+## 2. Non-Negotiable Architectural Rules
 
-* **Independência do Banco:** A suíte de testes em `tests/` **NUNCA** deve depender do contêiner do MongoDB estar rodando.
-* **Testes de Pré-Processamento e Ingestão:** Utilize fixtures geradoras de dados sintéticos em memória e a fixture nativa `tmp_path` do Pytest para leitura/escrita de arquivos temporários.
-* **Testes da API:** Utilize o `TestClient` do FastAPI aplicando `app.dependency_overrides` para substituir o `ReviewRepository` por uma implementação falsa em memória.
-* **Configuração:** O arquivo `pytest.ini` deve manter `pythonpath = . src` e `testpaths = tests`.
+1. **Strict Repository Pattern:**
+   * **Only** `src/repository.py` may import and use `pymongo` or `MongoClient`.
+   * Any new query, insertion, or analytical aggregation must be implemented as a method of `ReviewRepository`.
+2. **Synchronous API Route Handlers (`def`):**
+   * Because `pymongo` and `scikit-learn` perform blocking synchronous operations, **never declare FastAPI route handlers with `async def`** if they invoke the repository or classifier.
+   * Always use standard `def` so FastAPI executes requests in the worker threadpool, preventing event loop starvation.
+3. **Shared Service Layer (`src/services/classifier.py`):**
+   * NLP inference must remain centralized in the `Classifier` service in `src/services/classifier.py`. Both batch processing (`predict.py`) and the real-time API (`api/main.py`) consume this service to prevent logic duplication.
+   * The `.joblib` model artifact must be loaded once into memory on startup, never per HTTP request.
+4. **Dependency Injection (`Depends`):**
+   * FastAPI routes must receive instances of `ReviewRepository` and `Classifier` via `Depends`. This enables automated tests to inject in-memory mocks without requiring a running database.
+5. **Module Shadowing Prevention:**
+   * **Never** name local scripts or modules after installed third-party libraries (e.g., `streamlit.py`, `fastapi.py`, `pytest.py`). Use descriptive names such as `dashboard.py` or `app.py`.
+6. **BSON Schema Integrity & Aggregations:**
+   * Every review persisted via API must contain `origin: "api"`, `rating: null`, `label: null`, and `true_label: null`.
+   * The `accuracy_rate` pipeline in the repository must explicitly filter `true_label: {"$ne": null}` so API submissions are never counted as classification errors in global evaluation accuracy.
 
 ---
 
-## 4. Comandos de Desenvolvimento Frequentes
+## 3. Total Test Suite Isolation
+
+* **Zero Database Dependency:** The test suite in `tests/` **MUST NEVER** depend on a running MongoDB container.
+* **Preprocessing & Ingestion Tests:** Use in-memory synthetic data fixtures and Pytest's built-in `tmp_path` fixture for temporary file I/O.
+* **API Tests:** Use FastAPI's `TestClient` with `app.dependency_overrides` to substitute `ReviewRepository` and `Classifier` with in-memory test doubles (`FakeReviewRepository` and `FakeClassifier`).
+* **Configuration:** `pytest.ini` must maintain `pythonpath = . src` and `testpaths = tests`.
+
+---
+
+## 4. Frequent Development Commands
 
 ```bash
-# Ativar o ambiente virtual
+# Activate virtual environment
 source .venv/bin/activate
 
-# Executar a suíte de testes completa
+# Run complete automated test suite
 pytest -v
+# or via make:
+make test
 
-# Iniciar o banco de dados MongoDB
+# Start MongoDB container
 docker compose up -d
 docker compose ps
+# or via make:
+make up
 
-# Rodar a esteira completa da V1 (Batch)
+# Run complete Machine Learning pipeline (Batch)
 python run_pipeline.py
+# or via make:
+make pipeline
 
-# Ou rodar etapas individuais:
+# Run individual pipeline stages:
 python src/prepare_data.py
 python src/ingest.py
 python src/train.py
 python src/predict.py
 python src/analytics.py
 
-# Iniciar o Dashboard Web (Streamlit)
+# Launch Web Presentation UI (Streamlit)
+streamlit run src/interface/app.py
+# or via make:
+make ui
+
+# Launch BI Analytics Dashboard (Streamlit)
 streamlit run src/interface/dashboard.py
-# ou via make:
+# or via make:
 make dashboard
 
-# Iniciar o servidor da API (FastAPI)
+# Start REST API server (FastAPI)
 uvicorn api.main:app --reload --app-dir src
+# or via make:
+make api
+
+# Run API and UI concurrently in parallel
+make dev
 ```
 
 ---
 
-## 5. Convenções de Git, Commits e Arquivos Sensíveis
+## 5. Git Conventions, Commits & Sensitive Files
 
-* **Arquivos Estritamente Ignorados (Nunca Commitar):**
-  * Ambientes e chaves: `.venv/`, `.env`
+* **Strictly Ignored Files (Never Commit):**
+  * Environments and secrets: `.venv/`, `.env`
   * Caches: `__pycache__/`, `.pytest_cache/`
-  * Datasets volumosos: `data/raw/`, `data/reviews.csv`
-  * Artefatos pesados de Machine Learning: `models/`, `*.joblib`
-* **Padronização de Mensagens de Commit (Conventional Commits):**
-  * `feat:` Novas funcionalidades ou endpoints
-  * `fix:` Correção de bugs
-  * `test:` Adição ou modificação de testes
-  * `docs:` Alterações em documentação (`README.md`, `ARCHITECTURE.md`, `ROADMAP_V2.md`)
-  * `refactor:` Refatoração de código sem alteração de comportamento
-  * `chore:` Tarefas de manutenção, dependências ou `.gitignore`
+  * Datasets: `data/raw/`, `data/reviews.csv`
+  * Model artifacts: `models/`, `*.joblib`
+* **Conventional Commits Standard:**
+  * `feat:` New features or endpoints
+  * `fix:` Bug fixes
+  * `test:` Adding or modifying tests
+  * `docs:` Documentation updates (`README.md`, `ARCHITECTURE.md`, `ROADMAP_V2.md`)
+  * `refactor:` Code refactoring without behavioral alterations
+  * `chore:` Maintenance, dependencies, or `.gitignore` updates
 
 ---
 
-## 6. Integração com a Base de Conhecimento (Obsidian / Second Brain)
+## 6. Knowledge Base Integration (Obsidian / Second Brain)
 
-O desenvolvedor mantém um cofre de documentação técnica contínua (Obsidian Vault) conectado ao ambiente de desenvolvimento para consolidação e retenção de aprendizado.
+The developer maintains a technical documentation vault (Obsidian Vault) connected to the development environment for continuous learning consolidation.
 
-**Diretrizes para o agente de IA:**
-* O agente principal pode delegar pesquisas e redação de notas ao subagente especializado **`vault-researcher`**, que opera concorrentemente em background enquanto o fluxo de código prossegue.
-* Sempre que um conceito novo, framework, padrão arquitetural ou boa prática for introduzido ou discutido, verifique a base de notas e registre-o.
-* Siga rigorosamente a estrutura do cofre e os templates em `Templates/`:
-  * Frontmatter YAML padronizado com `tags:`
-  * Conexões internas e transversais utilizando wikilinks do Obsidian (`[[Nome da Nota]]`)
-  * Blocos de código com linguagem explícita e syntax highlighting
-  * Preservação da hierarquia de pastas e integração com o plugin Waypoint (`%% Begin Waypoint %%`)
+**Directives for AI Agents:**
+* The primary agent may delegate research and note drafting to the specialized subagent **`vault-researcher`**, operating concurrently in the background.
+* Whenever a new architectural pattern, framework, or best practice is introduced or refactored, verify the vault and record it.
+* Adhere strictly to the vault structure and templates in `Templates/`:
+  * Standardized YAML frontmatter with `tags:`
+  * Internal bidirectional connections using Obsidian wikilinks (`[[Note Name]]`)
+  * Explicit code syntax highlighting
+  * Preservation of folder hierarchy and integration with the Waypoint plugin (`%% Begin Waypoint %%`)

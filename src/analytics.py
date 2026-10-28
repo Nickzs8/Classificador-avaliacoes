@@ -6,78 +6,87 @@ pd.set_option("display.width", 120)
 pd.set_option("display.max_columns", None)
 
 
-def pivotar_evolucao(df):
-    """Transforma (mes, sentimento, total) em uma tabela: uma linha por mês."""
+def pivot_monthly_evolution(df: pd.DataFrame) -> pd.DataFrame:
+    """Transforms monthly aggregated records into a pivoted DataFrame with months as index."""
     if df.empty:
         return df
+
     return (
-        df.pivot(index="mes", columns="sentimento", values="total")
+        df.pivot(index="month", columns="sentiment", values="total")
         .fillna(0)
         .astype(int)
     )
 
 
-def formatar_recentes(docs):
-    """Converte lista de documentos BSON em DataFrame amigável para exibição."""
-    linhas = []
+def format_recent_reviews(docs: list[dict]) -> pd.DataFrame:
+    """Converts a list of BSON review documents into a human-readable display DataFrame."""
+    rows = []
     for d in docs:
-        pred = d.get("predicao") or {}
-        data = d.get("data")
-        data_str = data.strftime("%d/%m/%Y %H:%M") if hasattr(data, "strftime") else "N/A"
-        linhas.append({
-            "Data": data_str,
-            "Produto": d.get("produto") or "Não informado",
-            "Texto": d.get("texto", ""),
-            "Sentimento": pred.get("classe") or d.get("rotulo") or "Pendente",
-            "Confiança": f"{float(pred.get('confianca', 0.0)) * 100:.1f}%" if pred.get("confianca") else "N/A",
-            "Origem": d.get("origem", "batch"),
-        })
-    return pd.DataFrame(linhas)
+        pred = d.get("prediction") or {}
+        date_val = d.get("date")
+        date_str = date_val.strftime("%Y-%m-%d %H:%M") if hasattr(date_val, "strftime") else "N/A"
+
+        sentiment_val = pred.get("sentiment") or d.get("label") or "Pending"
+        conf_val = pred.get("confidence")
+        conf_str = f"{float(conf_val) * 100:.1f}%" if conf_val is not None else "N/A"
+
+        rows.append(
+            {
+                "Date": date_str,
+                "Product": d.get("product") or "Not specified",
+                "Text": d.get("text", ""),
+                "Sentiment": sentiment_val,
+                "Confidence": conf_str,
+                "Origin": d.get("origin", "batch"),
+            }
+        )
+    return pd.DataFrame(rows)
 
 
-def carregar_analises():
-    """Roda as agregações no MongoDB e devolve tudo pronto como DataFrames."""
+def load_analytics() -> dict:
+    """Executes analytical aggregations in MongoDB and returns structured DataFrames."""
     with ReviewRepository() as repo:
         return {
-            "total": repo.contar(),
-            "com_data": repo.contar({"data": {"$ne": None}}),
-            "negativas_por_produto": pd.DataFrame(repo.negativas_por_produto()),
-            "evolucao_por_mes": pivotar_evolucao(pd.DataFrame(repo.evolucao_por_mes())),
-            "confianca_media": pd.DataFrame(repo.confianca_media_por_classe()),
-            "taxa_acerto": pd.DataFrame(repo.taxa_acerto()),
-            "recentes": formatar_recentes(repo.listar_recentes(limite=10)),
+            "total": repo.count(),
+            "with_date": repo.count({"date": {"$ne": None}}),
+            "negative_by_product": pd.DataFrame(repo.negative_reviews_by_product()),
+            "monthly_evolution": pivot_monthly_evolution(pd.DataFrame(repo.monthly_evolution())),
+            "average_confidence": pd.DataFrame(repo.average_confidence_by_class()),
+            "accuracy_rate": pd.DataFrame(repo.accuracy_rate()),
+            "recent": format_recent_reviews(repo.list_recent(limit=10)),
         }
 
 
-def mostrar(titulo, df, index=False):
+def display_table(title: str, df: pd.DataFrame, index: bool = False):
+    """Prints formatted table to terminal stdout."""
     print("\n" + "=" * 60)
-    print(titulo)
+    print(title)
     print("=" * 60)
     if df.empty:
-        print("(sem dados)")
+        print("(no data)")
     else:
         print(df.to_string(index=index))
 
 
-def conferir(analises):
-    """Confere se a soma por mês bate com o total de documentos que têm data."""
-    evolucao = analises["evolucao_por_mes"]
-    soma = int(evolucao.sum().sum()) if not evolucao.empty else 0
+def verify_totals(analytics: dict):
+    """Verifies that monthly evolution aggregates match total documents containing dates."""
+    evolution = analytics["monthly_evolution"]
+    total_sum = int(evolution.sum().sum()) if not evolution.empty else 0
     print("\n" + "=" * 60)
-    print("CONFERÊNCIA")
+    print("TOTALS AUDIT")
     print("=" * 60)
-    print(f"Soma por mês: {soma} | Documentos com data: {analises['com_data']}")
+    print(f"Monthly sum: {total_sum} | Documents with date: {analytics['with_date']}")
 
 
 def main():
-    analises = carregar_analises()
-    print(f"Total de documentos: {analises['total']}")
+    analytics = load_analytics()
+    print(f"Total documents: {analytics['total']}")
 
-    mostrar("TOP PRODUTOS COM MAIS AVALIAÇÕES NEGATIVAS", analises["negativas_por_produto"])
-    mostrar("EVOLUÇÃO POR MÊS", analises["evolucao_por_mes"], index=True)
-    mostrar("CONFIANÇA MÉDIA POR CLASSE PREVISTA", analises["confianca_media"])
-    mostrar("TAXA DE ACERTO", analises["taxa_acerto"])
-    conferir(analises)
+    display_table("TOP PRODUCTS WITH MOST NEGATIVE REVIEWS", analytics["negative_by_product"])
+    display_table("MONTHLY SENTIMENT EVOLUTION", analytics["monthly_evolution"], index=True)
+    display_table("AVERAGE CONFIDENCE BY PREDICTED CLASS", analytics["average_confidence"])
+    display_table("MODEL ACCURACY RATE", analytics["accuracy_rate"])
+    verify_totals(analytics)
 
 
 if __name__ == "__main__":

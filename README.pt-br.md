@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="Licença: MIT">
 </p>
 
-Sistema de Machine Learning pronto para produção que classifica avaliações de produtos em português como **positivas** ou **negativas**, contando com:
+Sistema de Machine Learning pronto para produção que classifica avaliações de produtos como **positivas** ou **negativas**, contando com:
 * **Esteira Analítica em Lote:** Higieniza, rotula e ingere mais de 20.000 documentos no **MongoDB 8.2**, com treinamento automatizado de modelo Scikit-Learn e pipelines de agregação analítica.
 * **API REST em Tempo Real:** Desenvolvida com **FastAPI**, rotas síncronas em threadpool (*non-blocking event loop*), validação rigorosa de contratos com Pydantic V2 e documentação OpenAPI interativa.
 * **Apresentação Web Interativa:** Construída em **Streamlit** com inferência de sentimento em tempo real para o cliente e dashboard analítico de BI.
@@ -25,8 +25,20 @@ Sistema de Machine Learning pronto para produção que classifica avaliações d
 ## Interfaces Web (Streamlit)
 
 O projeto conta com duas camadas de apresentação visual web:
-1. **Interface de Inferência em Tempo Real (`src/interface/app.py`):** Permite que usuários submetam avaliações e recebam a predição de sentimento, métrica de certeza e gravação no banco instantaneamente.
-2. **Dashboard Analítico de BI (`src/interface/dashboard.py`):** Consolida KPIs de negócio, ranking de produtos com maior insatisfação, série temporal de sentimento e histórico das últimas avaliações registradas.
+
+### 1. Classificação de Sentimento em Tempo Real (`src/interface/app.py`)
+Permite que o usuário submeta avaliações avulsas e receba a predição de sentimento, a barra de confiança calibrada e a persistência no MongoDB em tempo real:
+
+<p align="center">
+  <img src="docs/images/interface.png" alt="Interface de Classificação de Avaliações em Tempo Real" width="850"/>
+</p>
+
+### 2. Dashboard Analítico de BI (`src/interface/dashboard.py`)
+Monitora KPIs analíticos, ranking de produtos com maior insatisfação, série temporal de evolução mensal e histórico das avaliações recentes:
+
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="Dashboard Analítico Streamlit" width="850"/>
+</p>
 
 ---
 
@@ -60,11 +72,11 @@ Arquitetura em camadas desacopladas aplicando **Repository Pattern**, **Service 
                         │ (HTTP / httpx)       │ (Interno)
 ┌───────────────────────▼────────────────┐     │
 │         Camada de API REST (FastAPI)   │     │
-│   POST /avaliacoes  │  GET /avaliacoes │     │
+│   POST /reviews     │  GET /reviews    │     │
 └───────────────────────┬────────────────┘     │
                         ▼                      │
 ┌────────────────────────────────────────┐     │
-│     Service Layer (Classificador)      │     │
+│       Service Layer (Classifier)       │     │
 │      Lógica Compartilhada de ML        │     │
 └───────────────────────┬────────────────┘     │
                         ▼                      ▼
@@ -84,7 +96,7 @@ Arquitetura em camadas desacopladas aplicando **Repository Pattern**, **Service 
 ## Estrutura do Projeto
 
 ```text
-classificador-avaliacoes/
+review-classifier/
 ├── data/              # Datasets brutos e amostras processadas (ignorado no git)
 ├── docs/              # Registros de Decisões de Arquitetura (ADRs) e Roadmap do projeto
 ├── models/            # Modelos de Machine Learning serializados (.joblib, ignorado)
@@ -135,21 +147,21 @@ Com a API em execução (`make api` ou `make dev`), acesse a documentação Open
 
 | Método | Endpoint | Descrição | Status Code |
 |---|---|---|---|
-| `POST` | `/avaliacoes` | Submete avaliação, infere sentimento em tempo real e salva no MongoDB | `201 Created` |
-| `GET` | `/avaliacoes/{id}` | Busca avaliação por ObjectId hexadecimal do MongoDB | `200 OK` / `404 Not Found` |
-| `GET` | `/avaliacoes?limite=10` | Lista as avaliações mais recentes em ordem decrescente de data | `200 OK` |
-| `GET` | `/saude` | Healthcheck validando API, conectividade com MongoDB e modelo de ML | `200 OK` / `503 Unavailable` |
+| `POST` | `/reviews` | Submete avaliação, infere sentimento em tempo real e salva no MongoDB | `201 Created` |
+| `GET` | `/reviews/{id}` | Busca avaliação por ObjectId hexadecimal do MongoDB | `200 OK` / `404 Not Found` |
+| `GET` | `/reviews?limit=10` | Lista as avaliações mais recentes em ordem decrescente de data | `200 OK` |
+| `GET` | `/health` | Healthcheck validando API, conectividade com MongoDB e modelo de ML | `200 OK` / `503 Unavailable` |
 
 ### Exemplos Práticos de Consumo com `curl`
 
-#### 1. Submeter uma Avaliação (`POST /avaliacoes`)
+#### 1. Submeter uma Avaliação (`POST /reviews`)
 
 ```bash
-curl -X POST "http://localhost:8000/avaliacoes" \
+curl -X POST "http://localhost:8000/reviews" \
   -H "Content-Type: application/json" \
   -d '{
-    "texto": "Entrega super rápida e o fone tem um som excelente! Recomendo muito.",
-    "produto": "Fone Bluetooth Pro"
+    "text": "Entrega super rápida e o fone tem um som excelente! Recomendo muito.",
+    "product": "Fone Bluetooth Pro"
   }'
 ```
 
@@ -157,42 +169,42 @@ curl -X POST "http://localhost:8000/avaliacoes" \
 ```json
 {
   "id": "6720d2a1e4b0a1d2c3e4f5b2",
-  "texto": "Entrega super rápida e o fone tem um som excelente! Recomendo muito.",
-  "produto": "Fone Bluetooth Pro",
-  "classe": "positivo",
-  "confianca": 0.965,
-  "modelo": "modelo_v1",
-  "data": "2026-10-27T20:30:00Z"
+  "text": "Entrega super rápida e o fone tem um som excelente! Recomendo muito.",
+  "product": "Fone Bluetooth Pro",
+  "sentiment": "positive",
+  "confidence": 0.965,
+  "model": "modelo_v1",
+  "date": "2026-10-27T20:30:00Z"
 }
 ```
 
 * Validação: O texto deve ter entre 3 e 2000 caracteres (retorna `422 Unprocessable Entity` se fora do intervalo).
-* Gravado com `origem: "api"`, `nota: null` e `rotulo_real: null` (garantindo que entradas da API nunca contaminem o retreino do modelo nem distorçam as métricas de acurácia global).
+* Gravado com `origin: "api"`, `rating: null` e `true_label: null` (garantindo que entradas da API nunca contaminem o retreino do modelo nem distorçam as métricas de acurácia global).
 
-#### 2. Buscar Avaliação por ID (`GET /avaliacoes/{id}`)
+#### 2. Buscar Avaliação por ID (`GET /reviews/{id}`)
 
 ```bash
-curl -X GET "http://localhost:8000/avaliacoes/6720d2a1e4b0a1d2c3e4f5b2"
+curl -X GET "http://localhost:8000/reviews/6720d2a1e4b0a1d2c3e4f5b2"
 ```
 
-#### 3. Listar Avaliações Recentes (`GET /avaliacoes?limite=5`)
+#### 3. Listar Avaliações Recentes (`GET /reviews?limit=5`)
 
 ```bash
-curl -X GET "http://localhost:8000/avaliacoes?limite=5"
+curl -X GET "http://localhost:8000/reviews?limit=5"
 ```
 
-#### 4. Checagem de Saúde do Sistema (`GET /saude`)
+#### 4. Checagem de Saúde do Sistema (`GET /health`)
 
 ```bash
-curl -X GET "http://localhost:8000/saude"
+curl -X GET "http://localhost:8000/health"
 ```
 
 **Resposta (`200 OK`):**
 ```json
 {
   "status": "ok",
-  "banco": "conectado",
-  "modelo": "carregado"
+  "database": true,
+  "model": true
 }
 ```
 
@@ -200,7 +212,7 @@ curl -X GET "http://localhost:8000/saude"
 
 ## Testes Automatizados
 
-A suíte de testes garante isolamento completo: **nenhum teste depende do MongoDB estar rodando**. O repositório e o classificador são substituídos em memória por mocks (`FakeReviewRepository` e `FakeClassificador`) via injeção de dependência (`app.dependency_overrides`).
+A suíte de testes garante isolamento completo: **nenhum teste depende do MongoDB estar rodando**. O repositório e o classificador são substituídos em memória por mocks (`FakeReviewRepository` e `FakeClassifier`) via injeção de dependência (`app.dependency_overrides`).
 
 ```bash
 make test

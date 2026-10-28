@@ -11,33 +11,36 @@ from config import MODEL_PATH
 from repository import ReviewRepository
 
 
-def carregar_dados():
+def load_data() -> pd.DataFrame:
+    """Loads labeled documents from MongoDB for training."""
     with ReviewRepository() as repo:
-        documentos = repo.buscar_rotulados()
+        documents = repo.find_labeled()
 
-    if not documentos:
+    if not documents:
         raise ValueError(
-            "Nenhum documento rotulado encontrado no MongoDB. Execute o src/ingest.py primeiro."
+            "No labeled documents found in MongoDB. Please run src/ingest.py first."
         )
 
-    df = pd.DataFrame(documentos)
-    print(f"Dados carregados do MongoDB: {len(df)} documentos rotulados.")
+    df = pd.DataFrame(documents)
+    print(f"Data loaded from MongoDB: {len(df)} labeled documents.")
     return df
 
-def montar_pipeline():
+
+def build_pipeline() -> Pipeline:
+    """Constructs the Scikit-Learn TF-IDF vectorizer and Logistic Regression pipeline."""
     return Pipeline(
         [
             (
                 "tfidf",
                 TfidfVectorizer(
-                    ngram_range=(1, 2),  # unigramas e bigramas
-                    min_df=2,  # descarta palavras/expressões que aparecem em menos de 2 textos
+                    ngram_range=(1, 2),  # unigrams and bigrams
+                    min_df=2,  # drops tokens appearing in fewer than 2 texts
                 ),
             ),
             (
                 "clf",
                 LogisticRegression(
-                    class_weight="balanced",  # pondera a perda para compensar a minoria de negativos
+                    class_weight="balanced",  # adjusts loss weights inversely proportional to class frequencies
                     max_iter=1000,
                     random_state=42,
                 ),
@@ -45,45 +48,41 @@ def montar_pipeline():
         ]
     )
 
-def predizer_conjunto(pipeline, X_test):
+
+def predict_set(pipeline: Pipeline, X_test: pd.Series):
+    """Generates predictions for a feature set."""
     return pipeline.predict(X_test)
 
 
-def treinar_modelo():
-    # carregar dados
-    df = carregar_dados()
-    X = df["texto"]
-    y = df["rotulo"]
+def train_model():
+    """Executes model training, evaluation on stratified test split, and joblib serialization."""
+    df = load_data()
+    X = df["text"]
+    y = df["label"]
 
-    # dividir em Treino (80%) e Teste (20%)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.20, random_state=42, stratify=y
     )
 
-    print(
-        f"Base dividida: {len(X_train)} amostras de treino e {len(X_test)} de teste.\n"
-    )
+    print(f"Dataset split: {len(X_train)} train samples and {len(X_test)} test samples.\n")
 
-    pipeline = montar_pipeline()
+    pipeline = build_pipeline()
 
-    # treinar o modelo
-    print("Treinando o pipeline...")
+    print("Fitting NLP pipeline...")
     pipeline.fit(X_train, y_train)
 
-    # avaliar no conjunto de teste
-    y_pred = predizer_conjunto(pipeline, X_test)
+    y_pred = predict_set(pipeline, X_test)
 
     print("\n" + "=" * 50)
-    print("RELATÓRIO DE CLASSIFICAÇÃO (TESTE)")
+    print("CLASSIFICATION REPORT (TEST SPLIT)")
     print("=" * 50)
     print(classification_report(y_test, y_pred))
 
-    # salvar o modelo em disco
-    caminho_modelo = Path(MODEL_PATH)
-    caminho_modelo.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(pipeline, caminho_modelo)
-    print(f"Modelo salvo com sucesso em: {caminho_modelo}")
+    model_path = Path(MODEL_PATH)
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(pipeline, model_path)
+    print(f"Model artifact successfully saved to: {model_path}")
 
 
 if __name__ == "__main__":
-    treinar_modelo()
+    train_model()

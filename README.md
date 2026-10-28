@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
 </p>
 
-Production-ready Machine Learning system that classifies Portuguese product reviews as **positive** or **negative**, featuring:
+Production-ready Machine Learning system that classifies customer product reviews as **positive** or **negative**, featuring:
 * **Batch Analytics Pipeline:** Cleans, labels, and loads over 20,000 documents into **MongoDB 8.2**, with automated Scikit-Learn model training and aggregation pipelines.
 * **Real-Time REST API:** Powered by **FastAPI** with synchronous threadpool routes, Pydantic V2 DTO validation, and OpenAPI documentation.
 * **Interactive Web Presentation:** Built with **Streamlit** for real-time customer review inference and business intelligence analytics.
@@ -25,8 +25,20 @@ Production-ready Machine Learning system that classifies Portuguese product revi
 ## Web Interfaces (Streamlit)
 
 The system provides two distinct web presentation layers:
-1. **Real-Time Inference Interface (`src/interface/app.py`):** Allows end users to type a product review and receive real-time sentiment prediction, confidence metrics, and database persistence.
-2. **Analytical BI Dashboard (`src/interface/dashboard.py`):** Aggregates business KPIs, ranks products with highest negative feedback, tracks temporal sentiment distribution, and lists recent reviews.
+
+### 1. Real-Time Sentiment Classification (`src/interface/app.py`)
+Allows end users to submit customer reviews and receive real-time sentiment predictions, confidence score gauges, and database persistence:
+
+<p align="center">
+  <img src="docs/images/interface.png" alt="Real-Time Sentiment Classification Interface" width="850"/>
+</p>
+
+### 2. Analytical BI Dashboard (`src/interface/dashboard.py`)
+Monitors high-level operational KPIs, dissatisfied product rankings, monthly sentiment evolution, and a real-time recent review activity feed:
+
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="Streamlit Analytical BI Dashboard" width="850"/>
+</p>
 
 ---
 
@@ -60,11 +72,11 @@ Layered architecture enforcing the **Repository Pattern**, **Service Layer**, an
                         │ (HTTP / httpx)       │ (Internal)
 ┌───────────────────────▼────────────────┐     │
 │         REST API Layer (FastAPI)       │     │
-│   POST /avaliacoes  │  GET /avaliacoes │     │
+│   POST /reviews     │  GET /reviews    │     │
 └───────────────────────┬────────────────┘     │
                         ▼                      │
 ┌────────────────────────────────────────┐     │
-│     Service Layer (Classificador)      │     │
+│       Service Layer (Classifier)       │     │
 │       Shared ML Inference Logic        │     │
 └───────────────────────┬────────────────┘     │
                         ▼                      ▼
@@ -84,7 +96,7 @@ Layered architecture enforcing the **Repository Pattern**, **Service Layer**, an
 ## Project Structure
 
 ```text
-classificador-avaliacoes/
+review-classifier/
 ├── data/              # Raw datasets and processed sample artifacts (gitignored)
 ├── docs/              # Architectural Decision Records (ADRs), specs, and roadmap
 ├── models/            # Serialized machine learning models (.joblib, gitignored)
@@ -135,21 +147,21 @@ When the API is running (`make api` or `make dev`), access the interactive OpenA
 
 | Method | Endpoint | Description | Status Code |
 |---|---|---|---|
-| `POST` | `/avaliacoes` | Submit review, classify sentiment in real-time, and store in MongoDB | `201 Created` |
-| `GET` | `/avaliacoes/{id}` | Retrieve review by hexadecimal MongoDB ObjectId | `200 OK` / `404 Not Found` |
-| `GET` | `/avaliacoes?limite=10` | List recent reviews sorted by creation date descending | `200 OK` |
-| `GET` | `/saude` | Healthcheck validating API, database connectivity, and ML model | `200 OK` / `503 Unavailable` |
+| `POST` | `/reviews` | Submit review, classify sentiment in real-time, and store in MongoDB | `201 Created` |
+| `GET` | `/reviews/{id}` | Retrieve review by hexadecimal MongoDB ObjectId | `200 OK` / `404 Not Found` |
+| `GET` | `/reviews?limit=10` | List recent reviews sorted by creation date descending | `200 OK` |
+| `GET` | `/health` | Healthcheck validating API, database connectivity, and ML model | `200 OK` / `503 Unavailable` |
 
 ### Practical `curl` Examples
 
-#### 1. Submit a Customer Review (`POST /avaliacoes`)
+#### 1. Submit a Customer Review (`POST /reviews`)
 
 ```bash
-curl -X POST "http://localhost:8000/avaliacoes" \
+curl -X POST "http://localhost:8000/reviews" \
   -H "Content-Type: application/json" \
   -d '{
-    "texto": "Entrega super rápida e o fone tem um som excelente! Recomendo muito.",
-    "produto": "Fone Bluetooth Pro"
+    "text": "Entrega super rápida e o fone tem um som excelente! Recomendo muito.",
+    "product": "Fone Bluetooth Pro"
   }'
 ```
 
@@ -157,42 +169,42 @@ curl -X POST "http://localhost:8000/avaliacoes" \
 ```json
 {
   "id": "6720d2a1e4b0a1d2c3e4f5b2",
-  "texto": "Entrega super rápida e o fone tem um som excelente! Recomendo muito.",
-  "produto": "Fone Bluetooth Pro",
-  "classe": "positivo",
-  "confianca": 0.965,
-  "modelo": "modelo_v1",
-  "data": "2026-10-27T20:30:00Z"
+  "text": "Entrega super rápida e o fone tem um som excelente! Recomendo muito.",
+  "product": "Fone Bluetooth Pro",
+  "sentiment": "positive",
+  "confidence": 0.965,
+  "model": "modelo_v1",
+  "date": "2026-10-27T20:30:00Z"
 }
 ```
 
 * Validation: Text must be between 3 and 2000 characters (returns `422 Unprocessable Entity` otherwise).
-* Stored with `origem: "api"`, `nota: null`, and `rotulo_real: null` (ensuring API inputs never contaminate model retraining or evaluation accuracy metrics).
+* Stored with `origin: "api"`, `rating: null`, and `true_label: null` (ensuring API inputs never contaminate model retraining or evaluation accuracy metrics).
 
-#### 2. Retrieve Review by ID (`GET /avaliacoes/{id}`)
+#### 2. Retrieve Review by ID (`GET /reviews/{id}`)
 
 ```bash
-curl -X GET "http://localhost:8000/avaliacoes/6720d2a1e4b0a1d2c3e4f5b2"
+curl -X GET "http://localhost:8000/reviews/6720d2a1e4b0a1d2c3e4f5b2"
 ```
 
-#### 3. List Recent Reviews (`GET /avaliacoes?limite=5`)
+#### 3. List Recent Reviews (`GET /reviews?limit=5`)
 
 ```bash
-curl -X GET "http://localhost:8000/avaliacoes?limite=5"
+curl -X GET "http://localhost:8000/reviews?limit=5"
 ```
 
-#### 4. System Healthcheck (`GET /saude`)
+#### 4. System Healthcheck (`GET /health`)
 
 ```bash
-curl -X GET "http://localhost:8000/saude"
+curl -X GET "http://localhost:8000/health"
 ```
 
 **Response (`200 OK`):**
 ```json
 {
   "status": "ok",
-  "banco": "conectado",
-  "modelo": "carregado"
+  "database": true,
+  "model": true
 }
 ```
 
@@ -200,7 +212,7 @@ curl -X GET "http://localhost:8000/saude"
 
 ## Automated Tests
 
-The test suite enforces full test isolation: **no test requires a running MongoDB database or network access**. External dependencies are substituted with in-memory test doubles (`FakeReviewRepository` and `FakeClassificador`) via FastAPI's `app.dependency_overrides`.
+The test suite enforces full test isolation: **no test requires a running MongoDB database or network access**. External dependencies are substituted with in-memory test doubles (`FakeReviewRepository` and `FakeClassifier`) via FastAPI's `app.dependency_overrides`.
 
 ```bash
 make test

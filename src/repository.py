@@ -1,107 +1,117 @@
-from pymongo import ASCENDING, MongoClient, UpdateOne, DESCENDING
-from config import MONGO_COLLECTION, MONGO_DB, MONGO_URI
-from pymongo.errors import PyMongoError
 from bson import ObjectId
 from bson.errors import InvalidId
+from pymongo import ASCENDING, DESCENDING, MongoClient, UpdateOne
+from pymongo.errors import PyMongoError
 
-SENTIMENTO = {"$addFields": {"sentimento": {"$ifNull": ["$rotulo", "$predicao.classe"]}}}
+from config import MONGO_COLLECTION, MONGO_DB, MONGO_URI
+
+SENTIMENT_STAGE = {
+    "$addFields": {
+        "sentiment": {"$ifNull": ["$label", "$prediction.sentiment"]}
+    }
+}
+
 
 class ReviewRepository:
-    """Único ponto de acesso ao MongoDB no projeto."""
+    """Sole data access point for MongoDB analytical storage and review persistence."""
 
-    def __init__(self, uri=MONGO_URI, db_name=MONGO_DB, collection_name=MONGO_COLLECTION):
+    def __init__(self, uri: str = MONGO_URI, db_name: str = MONGO_DB, collection_name: str = MONGO_COLLECTION):
         self._client = MongoClient(uri, serverSelectionTimeoutMS=5000)
         self._col = self._client[db_name][collection_name]
 
-    # permite usar "with ReviewRepository() as repo:"
     def __enter__(self):
         return self
 
     def __exit__(self, *args):
-        self.fechar()
+        self.close()
 
-    def fechar(self):
+    def close(self):
+        """Closes the underlying MongoClient connection."""
         self._client.close()
 
-    def limpar(self):
+    def clear(self):
+        """Drops the reviews collection."""
         self._col.drop()
 
-    def inserir_varios(self, documentos, lote=5000):
-        """Insere em lotes."""
-
+    def insert_many(self, documents: list[dict], batch_size: int = 5000) -> int:
+        """Inserts documents in batches."""
         total = 0
-        for i in range(0, len(documentos), lote):
-            resultado = self._col.insert_many(documentos[i:i + lote], ordered=False)
-            total += len(resultado.inserted_ids)
+        for i in range(0, len(documents), batch_size):
+            result = self._col.insert_many(documents[i : i + batch_size], ordered=False)
+            total += len(result.inserted_ids)
         return total
 
-    def criar_indices(self):
-        self._col.create_index([("rotulo", ASCENDING)])
-        self._col.create_index([("produto", ASCENDING)])
-        self._col.create_index([("data", DESCENDING)])
+    def create_indexes(self):
+        """Creates indexes for efficient querying and sorting."""
+        self._col.create_index([("label", ASCENDING)])
+        self._col.create_index([("product", ASCENDING)])
+        self._col.create_index([("date", DESCENDING)])
 
-    def contar(self, filtro=None):
-        return self._col.count_documents(filtro or {})
+    def count(self, filter_query: dict | None = None) -> int:
+        """Counts documents matching filter criteria."""
+        return self._col.count_documents(filter_query or {})
 
-    def contar_por_rotulo(self):
+    def count_by_label(self) -> dict[str, int]:
+        """Counts documents grouped by label."""
         pipeline = [
-            {"$group": {"_id": "$rotulo", "total": {"$sum": 1}}},
+            {"$group": {"_id": "$label", "total": {"$sum": 1}}},
             {"$sort": {"total": -1}},
         ]
         return {str(d["_id"]): d["total"] for d in self._col.aggregate(pipeline)}
 
-    def buscar_rotulados(self):
-        filtro = {"rotulo": {"$ne": None}}
-        projecao = {"_id": 0, "texto": 1, "rotulo": 1}
-        return list(self._col.find(filtro, projecao))
+    def find_labeled(self) -> list[dict]:
+        """Retrieves all labeled documents for model training."""
+        filter_query = {"label": {"$ne": None}}
+        projection = {"_id": 0, "text": 1, "label": 1}
+        return list(self._col.find(filter_query, projection))
 
-    def buscar_sem_predicao(self):
-        """Documentos sem rótulo e ainda sem predição (o _id vem por padrão)."""
+    def find_unlabeled(self) -> list[dict]:
+        """Retrieves documents without a label and without a prediction."""
+        filter_query = {"label": None, "prediction": None}
+        projection = {"text": 1, "true_label": 1}
+        return list(self._col.find(filter_query, projection))
 
-        filtro = {"rotulo": None, "predicao": None}
-        projecao = {"texto": 1, "rotulo_real": 1}
-        return list(self._col.find(filtro, projecao))
-
-    def gravar_predicoes(self, predicoes, lote=5000):
-        """predicoes: lista de dicts {"_id": ..., "predicao": {...}}."""
-
-        operacoes = [
-            UpdateOne({"_id": p["_id"]}, {"$set": {"predicao": p["predicao"]}})
-            for p in predicoes
+    def save_predictions(self, predictions: list[dict], batch_size: int = 5000) -> int:
+        """Performs bulk update to record prediction subdocuments."""
+        operations = [
+            UpdateOne(
+                {"_id": p["_id"]},
+                {"$set": {"prediction": p["prediction"]}},
+            )
+            for p in predictions
         ]
-        modificados = 0
-        for i in range(0, len(operacoes), lote):
-            resultado = self._col.bulk_write(operacoes[i:i + lote], ordered=False)
-            modificados += resultado.modified_count
-        return modificados
+        modified = 0
+        for i in range(0, len(operations), batch_size):
+            result = self._col.bulk_write(operations[i : i + batch_size], ordered=False)
+            modified += result.modified_count
+        return modified
 
-    def negativas_por_produto(self, limite=10):
-        """produtos com mais avaliacoes negativas"""
-
+    def negative_reviews_by_product(self, limit: int = 10) -> list[dict]:
+        """Calculates products with the highest volume of negative reviews."""
         pipeline = [
-            SENTIMENTO,
-            {"$match": {"sentimento": {"$ne": None}, "produto": {"$ne": None}}},
+            SENTIMENT_STAGE,
+            {"$match": {"sentiment": {"$ne": None}, "product": {"$ne": None}}},
             {
                 "$group": {
-                    "_id": "$produto",
+                    "_id": "$product",
                     "total": {"$sum": 1},
-                    "negativas": {
-                        "$sum": {"$cond": [{"$eq": ["$sentimento", "negativo"]}, 1, 0]}
+                    "negatives": {
+                        "$sum": {"$cond": [{"$eq": ["$sentiment", "negative"]}, 1, 0]}
                     },
                 }
             },
-            {"$match": {"negativas": {"$gt": 0}}},
-            {"$sort": {"negativas": -1}},
-            {"$limit": limite},
+            {"$match": {"negatives": {"$gt": 0}}},
+            {"$sort": {"negatives": -1}},
+            {"$limit": limit},
             {
                 "$project": {
                     "_id": 0,
-                    "produto": "$_id",
-                    "negativas": 1,
+                    "product": "$_id",
+                    "negatives": 1,
                     "total": 1,
-                    "pct_negativas": {
+                    "pct_negatives": {
                         "$round": [
-                            {"$multiply": [{"$divide": ["$negativas", "$total"]}, 100]},
+                            {"$multiply": [{"$divide": ["$negatives", "$total"]}, 100]},
                             1,
                         ]
                     },
@@ -110,68 +120,67 @@ class ReviewRepository:
         ]
         return list(self._col.aggregate(pipeline))
 
-    def evolucao_por_mes(self):
-        """Total de avaliações por mês e sentimento (ignora datas nulas)."""
-
+    def monthly_evolution(self) -> list[dict]:
+        """Aggregates review volume per month and sentiment."""
         pipeline = [
-            SENTIMENTO,
-            {"$match": {"data": {"$ne": None}, "sentimento": {"$ne": None}}},
+            SENTIMENT_STAGE,
+            {"$match": {"date": {"$ne": None}, "sentiment": {"$ne": None}}},
             {
                 "$group": {
                     "_id": {
-                        "mes": {"$dateToString": {"format": "%Y-%m", "date": "$data"}},
-                        "sentimento": "$sentimento",
+                        "month": {"$dateToString": {"format": "%Y-%m", "date": "$date"}},
+                        "sentiment": "$sentiment",
                     },
                     "total": {"$sum": 1},
                 }
             },
-            {"$sort": {"_id.mes": 1, "_id.sentimento": 1}},
+            {"$sort": {"_id.month": 1, "_id.sentiment": 1}},
             {
                 "$project": {
                     "_id": 0,
-                    "mes": "$_id.mes",
-                    "sentimento": "$_id.sentimento",
+                    "month": "$_id.month",
+                    "sentiment": "$_id.sentiment",
                     "total": 1,
                 }
             },
         ]
         return list(self._col.aggregate(pipeline))
 
-    def confianca_media_por_classe(self):
-        """Confiança média das predições, por classe prevista."""
-
+    def average_confidence_by_class(self) -> list[dict]:
+        """Calculates average model prediction confidence per predicted sentiment class."""
         pipeline = [
-            {"$match": {"predicao": {"$ne": None}}},
+            {"$match": {"prediction": {"$ne": None}}},
             {
                 "$group": {
-                    "_id": "$predicao.classe",
+                    "_id": "$prediction.sentiment",
                     "total": {"$sum": 1},
-                    "confianca_media": {"$avg": "$predicao.confianca"},
+                    "average_confidence": {"$avg": "$prediction.confidence"},
                 }
             },
             {
                 "$project": {
                     "_id": 0,
-                    "classe": "$_id",
+                    "class": "$_id",
                     "total": 1,
-                    "confianca_media": {"$round": ["$confianca_media", 3]},
+                    "average_confidence": {"$round": ["$average_confidence", 3]},
                 }
             },
-            {"$sort": {"classe": 1}},
+            {"$sort": {"class": 1}},
         ]
         return list(self._col.aggregate(pipeline))
 
-    def taxa_acerto(self):
-        """% de predições iguais ao rotulo_real, entre os documentos com predição."""
-
+    def accuracy_rate(self) -> list[dict]:
+        """Calculates accuracy percentage against true labels for predicted reviews."""
         pipeline = [
-            {"$match": {"predicao": {"$ne": None}, "rotulo_real": {"$ne": None}}},
+            {"$match": {"prediction": {"$ne": None}, "true_label": {"$ne": None}}},
             {
                 "$group": {
                     "_id": None,
                     "total": {"$sum": 1},
-                    "acertos": {
-                        "$sum": {"$cond": [{"$eq": ["$predicao.classe", "$rotulo_real"]}, 1, 0]}
+                    "hits": {
+                        "$sum": {
+                            "$cond": [{"$eq": ["$prediction.sentiment", "$true_label"]}, 1, 0]
+                        }
                     },
                 }
             },
@@ -179,10 +188,10 @@ class ReviewRepository:
                 "$project": {
                     "_id": 0,
                     "total": 1,
-                    "acertos": 1,
-                    "taxa_acerto": {
+                    "hits": 1,
+                    "accuracy_rate": {
                         "$round": [
-                            {"$multiply": [{"$divide": ["$acertos", "$total"]}, 100]},
+                            {"$multiply": [{"$divide": ["$hits", "$total"]}, 100]},
                             1,
                         ]
                     },
@@ -192,44 +201,38 @@ class ReviewRepository:
         return list(self._col.aggregate(pipeline))
 
     def ping(self) -> bool:
-        """Verifica se o MongoDB está acessível e respondendo."""
-
+        """Checks whether MongoDB is alive and reachable."""
         try:
             self._client.admin.command("ping")
             return True
         except PyMongoError:
             return False
 
-    def inserir_avaliacao(self, doc: dict) -> str:
-        """Insere uma única avaliação e retorna seu _id gerado como string."""
+    def insert_review(self, doc: dict) -> str:
+        """Inserts a single review document and returns its string ID."""
+        result = self._col.insert_one(doc)
+        return str(result.inserted_id)
 
-        resultado = self._col.insert_one(doc)
-        return str(resultado.inserted_id)
-
-    def buscar_por_id(self, id_avaliacao: str) -> dict | None:
-        """Retorna None se não encontrar ou se o ID for inválido."""
-
+    def find_by_id(self, review_id: str) -> dict | None:
+        """Finds review by ID or returns None if invalid/absent."""
         try:
-            objectId = ObjectId(id_avaliacao)
+            object_id = ObjectId(review_id)
         except InvalidId:
             return None
-        doc = self._col.find_one({"_id": objectId})
+        doc = self._col.find_one({"_id": object_id})
         if doc:
             doc["_id"] = str(doc["_id"])
         return doc
 
-    def listar_recentes(self, limite: int = 10) -> list[dict]:
-        """Retorna as avaliações mais recentes ordenadas por data decrescente."""
-
+    def list_recent(self, limit: int = 10) -> list[dict]:
+        """Lists recent reviews sorted by date descending."""
         cursor = (
             self._col.find()
-            .sort([("data", DESCENDING)])
-            .limit(limite)
+            .sort([("date", DESCENDING)])
+            .limit(limit)
         )
-        documentos = []
+        documents = []
         for doc in cursor:
             doc["_id"] = str(doc["_id"])
-            documentos.append(doc)
-        return documentos
-
-    
+            documents.append(doc)
+        return documents

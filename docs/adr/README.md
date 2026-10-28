@@ -1,29 +1,29 @@
-# Registros de Decisões de Arquitetura (ADR)
+# Architectural Decision Records (ADRs)
 
-Este diretório contém os **Architecture Decision Records (ADRs)** do projeto *Classificador de Avaliações*, registrando o histórico de decisões estruturais, tecnologias adotadas, justificativas técnicas e compensações (*trade-offs*).
+This directory contains the **Architectural Decision Records (ADRs)** for the *Review Sentiment Classifier* project, documenting structural decisions, technology choices, technical rationales, and architectural trade-offs.
 
-Os documentos seguem a estrutura padrão estabelecida por Michael Nygard e templates MADR (*Markdown Any Decision Records*).
+Documents adhere to the MADR (*Markdown Any Decision Records*) standard format established by Michael Nygard.
 
 ---
 
-## Índice de Decisões
+## Decision Log Index
 
-| ID | Título | Status | Data | Escopo |
+| ID | Title | Status | Date | Scope |
 |---|---|---|---|---|
-| [ADR-0001](0001-armazenamento-analitico-e-repository-pattern-com-mongodb.md) | Armazenamento Analítico e Repository Pattern com MongoDB | **Aceito** | 2026-10-21 | V1 / Core |
-| [ADR-0002](0002-pipeline-de-classificacao-com-tfidf-e-regressao-logistica.md) | Pipeline de Classificação com TF-IDF e Regressão Logística | **Aceito** | 2026-10-22 | V1 / ML |
-| [ADR-0003](0003-adocao-do-fastapi-com-rotas-sincronas.md) | Adoção do FastAPI com Rotas Síncronas (`def`) | **Aceito** | 2026-10-26 | V2 / API |
-| [ADR-0004](0004-contratos-de-dados-e-validacao-com-pydantic-v2.md) | Contratos de Dados e Validação Estrita com Pydantic V2 | **Aceito** | 2026-10-27 | V2 / API |
-| [ADR-0005](0005-injecao-de-dependencias-para-testabilidade-da-api.md) | Injeção de Dependências (`Depends`) para Isolamento de Testes | **Aceito** | 2026-10-26 | V2 / Testes |
-| [ADR-0006](0006-orquestracao-da-esteira-com-run-pipeline.md) | Orquestração da Esteira de Treinamento com `run_pipeline.py` | **Aceito** | 2026-10-27 | V1 / Tooling |
-| [ADR-0007](0007-padronizacao-de-comandos-de-desenvolvimento-com-makefile.md) | Padronização de Comandos de Desenvolvimento com `Makefile` | **Aceito** | 2026-10-27 | V2 / Tooling |
+| [ADR-0001](0001-analytical-storage-and-repository-pattern-with-mongodb.md) | Analytical Storage and Repository Pattern with MongoDB | **Accepted** | 2026-10-21 | Core / Database |
+| [ADR-0002](0002-classification-pipeline-with-tfidf-and-logistic-regression.md) | Classification Pipeline with TF-IDF and Logistic Regression | **Accepted** | 2026-10-22 | Core / ML |
+| [ADR-0003](0003-fastapi-adoption-with-synchronous-routes.md) | FastAPI Adoption with Synchronous Route Handlers (`def`) | **Accepted** | 2026-10-26 | API / Transport |
+| [ADR-0004](0004-data-contracts-and-validation-with-pydantic-v2.md) | Strict Data Contracts and Validation with Pydantic V2 | **Accepted** | 2026-10-27 | API / Contracts |
+| [ADR-0005](0005-dependency-injection-for-api-testability.md) | Dependency Injection (`Depends`) for Test Isolation | **Accepted** | 2026-10-26 | Testing / API |
+| [ADR-0006](0006-training-pipeline-orchestration-with-run-pipeline.md) | Training Pipeline Orchestration via `run_pipeline.py` | **Accepted** | 2026-10-27 | Tooling / Automation |
+| [ADR-0007](0007-development-automation-with-makefile.md) | Development Workflow Automation with `Makefile` | **Accepted** | 2026-10-27 | Tooling / DX |
 
 ---
 
-## Estrutura Padrão de um ADR
+## Standard ADR Structure
 
-Cada documento neste diretório é composto pelas seguintes seções:
-1. **Contexto e Problema:** Qual desafio técnico ou requisito de negócio motivou a decisão.
-2. **Decisão:** O que foi escolhido e como será implementado.
-3. **Alternativas Consideradas:** Quais outras opções foram avaliadas e os motivos do descarte.
-4. **Consequências e Trade-offs:** Benefícios obtidos e custos/responsabilidades operacionais aceitos.
+Each document in this directory follows a structured 4-part format:
+1. **Context and Problem Statement:** The technical challenge, architectural constraint, or business requirement.
+2. **Decision:** The chosen design, technology, or pattern and how it is implemented.
+3. **Considered Alternatives:** Other viable alternatives evaluated and the reasons for rejecting them.
+4. **Consequences and Trade-offs:** Positive architectural outcomes and accepted operational costs or trade-offs.

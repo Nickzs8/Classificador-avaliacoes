@@ -15,7 +15,7 @@ MODEL_PATH = os.getenv("MODEL_PATH", "models/modelo_v1.joblib")
 API_HOST = os.getenv("API_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 
-# quote_plus protege caracteres especiais na senha
+# quote_plus escapes special characters in the password
 MONGO_URI = (
     f"mongodb://{quote_plus(MONGO_USER)}:{quote_plus(MONGO_PASSWORD)}"
     f"@{MONGO_HOST}:{MONGO_PORT}/?authSource=admin"
