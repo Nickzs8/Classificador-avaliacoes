@@ -1,47 +1,47 @@
-# Roadmap da V2: Classificar Avaliações Enviadas pelo Usuário
+# V2 Roadmap: Real-Time User Review Classification
 
-## 1. Visão Geral
+## 1. Overview
 
-Na V1, o modelo classificava dados estáticos já persistidos no banco de dados. Na V2, as avaliações chegam do usuário externo em tempo real:
+In V1, the model performed batch sentiment inference exclusively on static data stored in the database. In V2, reviews can be submitted by external users in real time via a REST API:
 
 ```
-Usuário → Interface → API (FastAPI) → Serviço de classificação → modelo (.joblib)
+User → Interface → API (FastAPI) → Classification Service → Model (.joblib)
                           │
-                          └→ ReviewRepository → MongoDB (salva a avaliação já classificada)
+                          └→ ReviewRepository → MongoDB (stores classified review)
 ```
 
-Todo o ecossistema construído na V1 (repositório, modelo, banco de dados, análises) é reaproveitado. A V2 acrescenta duas camadas superiores: a **API REST** e a **Interface de Usuário**.
+The underlying V1 components (data repository, ML pipeline, MongoDB database, analytics aggregations) remain fully leveraged. V2 introduces two upper layers: the **REST API** and the **User Interface**.
 
 ---
 
-## 2. Registro de Decisões de Arquitetura (ADR)
+## 2. Architectural Decisions Summary
 
-| Decisão | Motivo |
+| Decision | Rationale |
 |---|---|
-| **FastAPI + Uvicorn** | Ecossistema nativo Python, validação automática por tipagem e documentação interativa OpenAPI em `/docs` sem esforço. |
-| **Modelo carregado uma vez, na inicialização** | Carregar o arquivo binário `.joblib` a cada requisição causaria latência inaceitável. |
-| **Rotas síncronas (`def`, não `async def`)** | Os drivers `pymongo` e `scikit-learn` são bloqueantes. Com `def`, o FastAPI delega a execução para uma thread separada do pool, impedindo o bloqueio do event loop. |
-| **Lógica de predição desacoplada (`services/classificador.py`)** | Centraliza a inferência em uma camada de serviço (*Service Layer*), permitindo que tanto o batch da V1 (`predict.py`) quanto a API utilizem o mesmo código sem duplicação. |
-| **Injeção de dependência (`Depends`)** | Desacopla o ciclo de vida do repositório e do classificador, viabilizando testes unitários e de integração com mocks sem dependência do MongoDB ativo. |
-| **Schemas Pydantic na entrada e na saída (DTOs)** | Estabelece contratos de dados rígidos com validação de payload e documentação explícita. |
-| **Interface desacoplada via HTTP** | A interface comunica-se estritamente através da API REST, sem acesso direto ao banco ou ao modelo de ML. |
+| **FastAPI + Uvicorn** | High-performance Python ASGI framework with automatic type validation and interactive OpenAPI docs at `/docs`. |
+| **Model loaded once at application startup** | Deserializing the binary `.joblib` model on every HTTP request would introduce prohibitive latency. |
+| **Synchronous route handlers (`def`, not `async def`)** | `pymongo` and `scikit-learn` are synchronous and blocking. Using standard `def` offloads execution to an AnyIO worker threadpool, preserving event loop responsiveness. |
+| **Decoupled Service Layer (`services/classificador.py`)** | Centralizes ML inference into a reusable service consumed by both batch jobs (`predict.py`) and API controllers without logic duplication. |
+| **Dependency Injection (`Depends`)** | Decouples lifecycle management for repositories and services, enabling seamless unit and integration testing via in-memory mocks. |
+| **Pydantic Schemas for DTOs** | Establishes strict data contracts, field validation, and documentation for both request payloads and responses. |
+| **Decoupled HTTP Interface** | The frontend communicates strictly via standard REST HTTP endpoints, with no direct access to the database or ML model. |
 
-**Padrões de projeto aplicados:** *Repository Pattern*, *Service Layer* (`services/classificador.py`), *Data Transfer Object / Schema* (Pydantic) e *Dependency Injection* (`Depends`).
+**Key Design Patterns:** *Repository Pattern*, *Service Layer*, *Data Transfer Object (DTO)*, and *Dependency Injection*.
 
 ---
 
-## 3. Contrato da API
+## 3. REST API Contracts
 
-| Método e Rota | Descrição | Resposta Esperada |
+| Method & Route | Description | Expected Status |
 |---|---|---|
-| `POST /avaliacoes` | Recebe o texto, classifica via ML, persiste no banco e retorna o resultado consolidado | `201 Created` |
-| `GET /avaliacoes/{id}` | Busca uma avaliação específica pelo ID | `200 OK` ou `404 Not Found` |
-| `GET /avaliacoes?limite=10` | Lista as últimas avaliações cadastradas em ordem cronológica | `200 OK` (lista) |
-| `GET /saude` | Healthcheck de conectividade da API, modelo e banco | `200 OK` ou `503 Service Unavailable` |
+| `POST /avaliacoes` | Receives review text, runs ML inference, persists to MongoDB, and returns result | `201 Created` |
+| `GET /avaliacoes/{id}` | Fetches a single review by its hexadecimal MongoDB ObjectId | `200 OK` or `404 Not Found` |
+| `GET /avaliacoes?limite=10` | Lists recent reviews ordered by creation date descending | `200 OK` (list) |
+| `GET /saude` | System healthcheck validating API, database connectivity, and ML model | `200 OK` or `503 Service Unavailable` |
 
-### Exemplos de Payload
+### Payload Examples
 
-**Requisição (`POST /avaliacoes`):**
+**Request (`POST /avaliacoes`):**
 ```json
 {
   "texto": "Chegou rápido, mas a embalagem veio amassada",
@@ -49,7 +49,7 @@ Todo o ecossistema construído na V1 (repositório, modelo, banco de dados, aná
 }
 ```
 
-**Resposta (`201 Created`):**
+**Response (`201 Created`):**
 ```json
 {
   "id": "6720c1f2e4b0a1d2c3e4f5a6",
@@ -62,10 +62,10 @@ Todo o ecossistema construído na V1 (repositório, modelo, banco de dados, aná
 }
 ```
 
-* O campo `produto` é opcional.
-* Textos vazios ou menores que 3 caracteres, assim como maiores que 2000 caracteres, devolvem erro `422 Unprocessable Entity`.
+* The `produto` field is optional.
+* Review texts shorter than 3 characters or longer than 2000 characters return `422 Unprocessable Entity`.
 
-### Estrutura do Documento no MongoDB
+### MongoDB Document Schema for API Submissions
 
 ```json
 {
@@ -85,80 +85,74 @@ Todo o ecossistema construído na V1 (repositório, modelo, banco de dados, aná
 }
 ```
 
-> **Atenção:** Como `rotulo` e `rotulo_real` são gravados como `null`, essas avaliações **nunca entram no retreino**. Para evitar distorções na métrica de `taxa_acerto` (que compara com `rotulo_real`), o pipeline de agregação ignora registros com `rotulo_real: null`.
+> **Data Integrity:** Because `rotulo` and `rotulo_real` are set to `null`, API submissions are **never included in model retraining**. Furthermore, the `taxa_acerto` aggregation pipeline explicitly filters `rotulo_real: {"$ne": null}` so that API data does not distort model evaluation accuracy.
 
 ---
 
-## 4. Estrutura de Pastas (Novidades da V2)
+## 4. Directory Structure (V2 Additions)
 
-```
+```text
 src/
-├─ (arquivos da V1)
+├─ (V1 core pipeline files)
 ├─ services/
-│  └─ classificador.py     # Serviço: carrega o modelo e classifica textos
+│  └─ classificador.py     # Service: loads model and runs text inference
 ├─ api/
-│  ├─ main.py              # Aplicação FastAPI, ciclo de vida e rotas
-│  ├─ schemas.py           # Schemas Pydantic (validação de entrada e saída)
-│  └─ dependencias.py      # Provedores de injeção de dependência (Depends)
-└─ interface/
-   └─ app.py               # Interface gráfica de usuário
+│  ├─ main.py              # FastAPI app, lifecycle, and route handlers
+│  ├─ schemas.py           # Pydantic schemas (input/output validation)
+│  └─ dependencies.py      # Dependency injection providers (Depends)
+├─ interface/
+│  ├─ app.py               # Real-time review classification UI (Streamlit)
+│  └─ dashboard.py         # Analytical business dashboard (Streamlit)
 tests/
-├─ (testes da V1)
-├─ test_classificador.py   # Testes unitários do serviço de inferência
-└─ test_api.py             # Testes de integração dos endpoints (com TestClient)
+├─ (V1 pipeline tests)
+├─ test_classificador.py   # Unit tests for the inference service layer
+├─ test_api.py             # Integration tests for API endpoints (with TestClient)
+└─ test_interface.py       # Unit tests for Streamlit HTTP client utilities
 ```
 
 ---
 
-## 5. Etapas de Implementação
+## 5. Implementation Phases
 
-### Fase 1: API RESTful
+### Phase 1: RESTful API
+* **Step 1: Planning and Contract Definition**
+  * Finalize endpoints, schemas, and validation rules.
+  * Create `v2` development branch.
+* **Step 2: Project Preparation**
+  * Install dependencies (`fastapi`, `uvicorn[standard]`, `httpx`).
+  * Extend `ReviewRepository`: `inserir_avaliacao()`, `buscar_por_id()`, `listar_recentes()`, `ping()`, and index on `data`.
+  * Adjust `taxa_acerto` pipeline to filter `rotulo_real: {"$ne": null}`.
+* **Step 3: Classification Service Layer (`services/classificador.py`)**
+  * Create decoupled `Classificador` class.
+  * Refactor `predict.py` to use the shared classification service.
+* **Step 4: API Endpoints**
+  * Implement `schemas.py`, `main.py`, and `dependencies.py`.
+  * Handle HTTP errors (`422`, `404`, `503`).
+* **Step 5: Automated API Testing**
+  * Test suite using `TestClient` with in-memory fake repository.
+  * Validate 100% database isolation without requiring MongoDB.
 
-* **Etapa 1: Contrato e Planejamento**
-  * Fechamento de endpoints, schemas e validações.
-  * Criação da branch `v2` e abertura das issues no GitHub.
-* **Etapa 2: Preparação do Projeto**
-  * Instalar dependências (`fastapi`, `uvicorn[standard]`, `httpx`).
-  * Atualizar `ReviewRepository`: `inserir_avaliacao()`, `buscar_por_id()`, `listar_recentes()`, `ping()` e índice em `data`.
-  * Ajustar pipeline da `taxa_acerto` para ignorar `rotulo_real: null`.
-* **Etapa 3: Serviço de Classificação (`services/classificador.py`)**
-  * Criar classe `Classificador` isolada da API.
-  * Refatorar `predict.py` para consumir o novo serviço compartilhado.
-* **Etapa 4: Endpoints da API**
-  * Implementação de `schemas.py`, `main.py` e `dependencias.py`.
-  * Tratamento de erros HTTP (`422`, `404`, `503`).
-* **Etapa 5: Testes Automatizados da API**
-  * Suíte com `TestClient` e repositório mockado em memória.
-  * Garantir execução isolada sem necessidade do MongoDB ativo.
+### Phase 2: User Interface
+* **Step 6: Submission and Real-Time Results UI**
+  * Interactive form with text input and optional product field.
+  * Visual feedback: sentiment badge and confidence progress bar.
+* **Step 7: User Experience (UX) and Live Activity Feed**
+  * Recent review listing via `GET /avaliacoes?limite=10`.
+  * Low confidence alerts (< 60%) and API error handling.
+* **Step 8: Documentation and V2 Release**
+  * Update READMEs with `curl` examples and interactive documentation links.
+  * Create GNU `Makefile` for developer workflow orchestration.
+  * Tag release `v2.0`.
 
-### Fase 2: Interface de Usuário
-
-* **Etapa 6: Interface de Envio e Resultado**
-  * Formulário interativo com input de texto e produto opcional.
-  * Exibição visual da classe predita e barra de confiança.
-* **Etapa 7: Histórico e Experiência do Usuário (UX)**
-  * Listagem das últimas avaliações via `GET /avaliacoes`.
-  * Alertas de baixa confiança (< 60%) e tratamento de indisponibilidade da API.
-* **Etapa 8: Documentação e Release V2**
-  * Atualização dos READMEs com exemplos de `curl` e documentação interativa.
-  * Merge na branch principal e criação da tag `v2.0`.
-
-### Fase 3: Internacionalização e Refatoração para Inglês (Codebase i18n)
-
-* **Etapa 9: Refatoração do Backend e Banco para Inglês**
-  * Tradução dos métodos e queries de `ReviewRepository` (`insert_review`, `find_by_id`, `list_recent`, `accuracy_rate`).
-  * Tradução dos Schemas Pydantic (`ReviewInput`, `ReviewOutput`, `HealthOutput`) e endpoints da API (`/reviews`, `/health`).
-  * Migração do serviço `Classificador` para `ClassifierService` (`classify_text`, `classify_documents`).
-* **Etapa 10: Refatoração da Suíte de Testes e Pipeline**
-  * Tradução dos testes em `tests/` mantendo cobertura de 100%.
-  * Atualização dos scripts de dados (`prepare_data.py`, `ingest.py`, `train.py`) e `run_pipeline.py`.
-  * Manter o dataset B2W (dados em português) preservado como caso de uso legítimo de NLP em língua portuguesa.
+### Phase 3: Codebase Internationalization 
+* **Step 9: Backend and Database Translation to English**
+  * Translate all docs.
+  * Translate `ReviewRepository` methods (`insert_review`, `find_by_id`, `list_recent`, `accuracy_rate`).
+  * Translate Pydantic schemas (`ReviewInput`, `ReviewOutput`, `HealthOutput`) and API routes (`/reviews`, `/health`).
+  * Rename `Classificador` to `ClassifierService` (`classify_text`, `classify_documents`).
+* **Step 10: Test Suite and Pipeline Refactoring**
+  * Translate test functions and assertions in `tests/` while preserving 100% test coverage.
+  * Update data scripts (`prepare_data.py`, `ingest.py`, `train.py`) and `run_pipeline.py`.
+  * Preserve B2W Portuguese dataset as an authentic NLP use case.
 
 ---
-
-## 6. Fora do Escopo (Ideias para V3)
-
-- Feedback loop de correção de rótulo pelo usuário com retreino automático.
-- Autenticação JWT e rate limiting por IP/API key.
-- Deploy em nuvem (Render / AWS / GCP).
-- Classificação em lote via upload de arquivos CSV/Excel.

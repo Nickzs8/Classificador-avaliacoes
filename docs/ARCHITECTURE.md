@@ -1,82 +1,82 @@
-# Arquitetura do Sistema
+# System Architecture
 
-Este documento descreve detalhadamente a arquitetura de software, os padrões de projeto, a modelagem de dados no MongoDB e as diretrizes técnicas do **Classificador de Avaliações**.
+This document provides a detailed specification of the software architecture, design patterns, MongoDB data modeling, and technical guidelines for the **Review Sentiment Classifier**.
 
 ---
 
-## 1. Princípios Arquiteturais e Padrões de Projeto
+## 1. Architectural Principles and Design Patterns
 
-O projeto foi estruturado seguindo uma **Arquitetura em Camadas (Layered Architecture)** com foco em baixo acoplamento, alta coesão e facilidade de testes unitários:
+The project follows a **Layered Architecture** emphasizing loose coupling, high cohesion, and isolated automated testing:
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│             Camada de Apresentação / UI                │
-│       (Scripts CLI, Dashboard e Interface Web)         │
+│               Presentation Layer / UI                  │
+│       (CLI Scripts, BI Dashboard, and Web App)         │
 ├────────────────────────────────────────────────────────┤
-│             Camada de API / Transporte                 │
-│         (FastAPI: rotas, validações e DTOs)            │
+│             API / Transport Layer                      │
+│        (FastAPI: routes, validation, and DTOs)         │
 ├────────────────────────────────────────────────────────┤
-│             Camada de Serviços / Domínio               │
-│  (Ingestão, Classificador ML, Treino e Predição)       │
+│             Service / Domain Layer                     │
+│  (Ingestion, ML Classifier, Training, and Prediction)  │
 ├────────────────────────────────────────────────────────┤
-│             Camada de Acesso a Dados                   │
-│   (ReviewRepository: único ponto de uso do PyMongo)    │
+│             Data Access Layer                          │
+│   (ReviewRepository: sole point of PyMongo usage)      │
 ├────────────────────────────────────────────────────────┤
-│             Banco de Dados / Armazenamento             │
-│                 (MongoDB 8.2 em Docker)                │
+│             Database / Storage Layer                   │
+│             (MongoDB 8.2 on Docker)                    │
 └────────────────────────────────────────────────────────┘
 ```
 
-### Padrões Adotados:
-* **Repository Pattern (`ReviewRepository`):** Isola toda a complexidade de consultas, pipelines de agregação BSON e transações do MongoDB em um único ponto do sistema. Nenhum outro arquivo importa ou consome diretamente o `pymongo`.
-* **Service Layer (`src/services/classificador.py`):** Centraliza o carregamento do modelo e as transformações de inferência NLP, compartilhando a mesma lógica entre as predições em lote da V1 e os endpoints em tempo real da V2.
-* **DTO / Schemas (Pydantic):** Validação estrita e tipagem forte nos contratos de entrada e saída da API.
-* **Dependency Injection (`Depends`):** Injeção de repositórios e serviços nas rotas HTTP do FastAPI, permitindo testes isolados com mocks em memória sem necessidade do banco ativo.
-* **Threadpool Offloading:** Declaração de rotas com `def` para garantir que chamadas síncronas/bloqueantes do PyMongo e Scikit-Learn executem em threads secundárias, preservando o event loop da API.
+### Adopted Patterns:
+* **Repository Pattern (`ReviewRepository`):** Encapsulates all query complexity, BSON aggregation pipelines, and MongoDB operations in a single class. No other module imports or interacts directly with `pymongo` or `MongoClient`.
+* **Service Layer (`src/services/classificador.py`):** Centralizes model loading and NLP inference logic, sharing the exact same prediction pipeline across batch workflows and real-time API endpoints.
+* **DTO / Schemas (Pydantic V2):** Enforces strict data contracts, type safety, and input sanitization on API boundaries.
+* **Dependency Injection (`Depends`):** Injects repositories and services into FastAPI route handlers, enabling deterministic unit testing via in-memory mocks without requiring a running database.
+* **Threadpool Offloading:** Route handlers that interact with blocking libraries (`pymongo`, `scikit-learn`, `joblib`) are defined with synchronous `def`. FastAPI automatically executes them in a dedicated worker threadpool, preventing event loop starvation.
 
 ---
 
-## 2. Diagramas de Fluxo
+## 2. Workflow Diagrams
 
-### V1: Processamento em Lote (Batch Workflow)
+### Batch Processing Workflow
 ```
-Dataset Bruto (CSV)
+Raw Dataset (CSV)
         │
         ▼
-[prepare_data.py] ── Limpeza e rotulagem ──► CSV Higienizado
-                                                   │
-                                                   ▼
-                                           [ingest.py] ── Ingestão BSON ──► MongoDB
-                                                                               │
+[prepare_data.py] ── Cleaning and Labeling ──► Sanitized CSV
+                                                    │
+                                                    ▼
+                                            [ingest.py] ── BSON Ingestion ──► MongoDB
+                                                                                │
        ┌───────────────────────────────────────────────────────────────────────┘
-       ├─ Documentos rotulados (90%) ──► [train.py] ──► Artefato models/modelo_v1.joblib
-       │                                                          │
-       └─ Documentos sem rótulo (10%) ──► [predict.py] ◄──────────┘
+       ├─ Labeled Documents (90%) ──► [train.py] ──► Artifact models/modelo_v1.joblib
+       │                                                         │
+       └─ Unlabeled Documents (10%) ──► [predict.py] ◄───────────┘
                                                 │
                                                 ▼
-                                   MongoDB (UpdateOne retroativo)
+                                   MongoDB (Retroactive UpdateOne)
                                                 │
                                                 ▼
                                     [analytics.py / dashboard.py]
 ```
 
-### V2: Inferência em Tempo Real (Real-Time API)
+### Real-Time API Inference Workflow
 ```
-Usuário Final / Web Client
+End User / Web Client
         │
         │ HTTP POST /avaliacoes {"texto": "...", "produto": "..."}
         ▼
-   FastAPI (Rotas síncronas + Schemas Pydantic)
+   FastAPI (Synchronous routes + Pydantic Schemas)
         │
-        ├──► Classificador Service (carrega modelo_v1.joblib uma única vez)
+        ├──► Classifier Service (loads modelo_v1.joblib once in memory)
         │         │
         │         ▼
-        │    Previsão: classe ("positivo"/"negativo") + confiança (float)
+        │    Prediction: class ("positivo"/"negativo") + confidence (float)
         │
         └──► ReviewRepository (MongoDB)
                   │
                   ▼
-          Salva documento BSON:
+          Persists BSON document:
           - nota: null, rotulo: null, rotulo_real: null
           - predicao: { classe, confianca, modelo, data }
           - origem: "api"
@@ -84,11 +84,11 @@ Usuário Final / Web Client
 
 ---
 
-## 3. Modelagem de Dados no MongoDB
+## 3. MongoDB Data Modeling
 
-O banco utiliza documentos flexíveis no formato BSON, garantindo compatibilidade entre dados históricos e novos dados de produção:
+The database uses flexible BSON documents, ensuring seamless interoperability between historical batch records and real-time user submissions:
 
-### Esquema Consolidado do Documento:
+### Consolidated Document Schema:
 ```json
 {
   "_id": {"$oid": "653b1e7c8f9b2a1234567890"},
@@ -108,35 +108,37 @@ O banco utiliza documentos flexíveis no formato BSON, garantindo compatibilidad
 }
 ```
 
-### Justificativa dos Campos:
-* **`texto` (String):** Texto da avaliação já higienizado (sem espaços nas pontas e com mais de 10 caracteres).
-* **`produto` (String / Null):** Nome do produto avaliado (opcional para usuários da API).
-* **`data` (ISODate):** Objeto de data nativo BSON para viabilizar agregações e agrupamentos temporais via `$dateToString`.
-* **`nota` (Int / Null):** Nota de 1 a 5 dada pelo cliente (nulo em avaliações vindas via API).
-* **`rotulo` (String / Null):** Rótulo supervisionado (`"positivo"` ou `"negativo"`). Ingerido como `null` em 10% da base e em todas as avaliações da API para simular dados novos.
-* **`rotulo_real` (String / Null):** Gabarito original do dataset para auditoria posterior. **Nunca é exposto no treinamento**.
-* **`predicao` (Object / Null):** Subdocumento populado pelo classificador contendo `classe`, `confianca` (probabilidade), nome da versão do `modelo` e timestamp da inferência.
-* **`origem` (String / Null):** Identifica a procedência do registro (ex: `"dataset"` ou `"api"`).
+### Field Rationale:
+* **`texto` (String):** Sanitized customer review text (trimmed, minimum 10 characters for training; minimum 3 characters for API).
+* **`produto` (String / Null):** Evaluated product name (optional for API clients).
+* **`data` (ISODate):** Native BSON UTC timestamp enabling temporal aggregation and grouping via `$dateToString`.
+* **`nota` (Int / Null):** Customer rating from 1 to 5 (null for reviews submitted via API).
+* **`rotulo` (String / Null):** Supervised training label (`"positivo"` or `"negativo"`). Stored as `null` in ~10% of batch data and in all API submissions to simulate unlabeled production data.
+* **`rotulo_real` (String / Null):** Original ground truth rating from the dataset for auditability. **Never exposed during training**.
+* **`predicao` (Object / Null):** Subdocument populated by the classifier containing predicted `classe`, calibrated `confianca` probability, model identifier, and execution timestamp.
+* **`origem` (String / Null):** Tracks data provenance (`"api"` or default `"batch"`).
 
 ---
 
-## 4. Otimização e Índices de Banco de Dados
+## 4. Database Indexing & Optimization
 
-Para assegurar alta performance nas buscas e nas agregações periódicas, o repositório provisiona índices dedicados:
+To ensure predictable $O(\log N)$ lookups and fast analytical aggregations, the repository automatically provisions indexes on startup:
 
 ```python
 db.reviews.create_index([("rotulo", ASCENDING)])
 db.reviews.create_index([("produto", ASCENDING)])
-db.reviews.create_index([("data", ASCENDING)])
+db.reviews.create_index([("data", DESCENDING)])
 ```
+
+* **Index on `data` (DESCENDING):** Directly satisfies the sorting criteria of `listar_recentes(limite=10)` used by the API and live feeds, performing an optimal `IXSCAN` without in-memory sorting.
 
 ---
 
-## 5. Estratégia de Agregação Analítica (*Aggregation Pipelines*)
+## 5. Aggregation Pipeline Strategy
 
-O repositório utiliza o pipeline de agregação do MongoDB como esteira analítica primária, evitando transferir milhares de registros para a memória do servidor Python:
+The repository delegates analytical calculations directly to the MongoDB Aggregation Framework, avoiding expensive in-memory processing in Python:
 
-### A Constante `SENTIMENTO`:
+### Sentiment Coalescence Stage (`SENTIMENTO`):
 ```javascript
 SENTIMENTO = {
   "$addFields": {
@@ -146,10 +148,10 @@ SENTIMENTO = {
   }
 }
 ```
-* **Coalescência Analítica:** Se a avaliação já possui rótulo consolidado, utiliza o `rotulo`. Se for nulo, utiliza a classe prevista pelo modelo de Machine Learning (`predicao.classe`), unificando a base em tempo de consulta.
+* **Analytical Coalescence:** If a review already contains a supervised `rotulo`, it is prioritized. If null, the pipeline falls back to the ML prediction (`predicao.classe`), unifying the dataset dynamically at query time.
 
-### Proteção da Métrica de Acurácia:
-O método `taxa_acerto()` filtra explicitamente registros onde `rotulo_real != null`:
+### Evaluation Metric Protection:
+The `taxa_acerto()` method explicitly filters documents where `rotulo_real != null`:
 ```javascript
 {
   "$match": {
@@ -158,14 +160,15 @@ O método `taxa_acerto()` filtra explicitamente registros onde `rotulo_real != n
   }
 }
 ```
-Isso impede que dados vindos da API (que não possuem gabarito) sejam contados erroneamente como erros na métrica de acurácia global.
+This guarantees that API submissions (which lack ground truth labels) are never counted as classification errors in global model accuracy calculations.
 
 ---
 
-## 6. Estratégia de Testes Automatizados
+## 6. Automated Testing Strategy
 
-O sistema foi concebido com isolamento total de testes:
-* **Testes de Pré-Processamento (`test_rotulagem.py`):** Testam regras de sanitização, amostragem e mutabilidade sem interagir com arquivos de disco ou bancos de dados.
-* **Testes de Ingestão (`test_ingest.py`):** Validam tipos BSON e particionamento dos 10% sem rótulo usando datasets sintéticos e a fixture `tmp_path`.
-* **Testes de Modelo (`test_modelo.py`):** Treinam um mini-pipeline com 16 exemplos em memória via fixture com `scope="module"`, validando probabilidades e serialização `joblib`.
-* **Testes da API (`test_api.py`):** Utilizam o `TestClient` do FastAPI substituindo a dependência do `ReviewRepository` por um mock em memória via `app.dependency_overrides`, dispensando instâncias do Docker.
+The test suite enforces complete test isolation:
+* **Preprocessing Tests (`test_rotulagem.py`):** Verify sanitization rules, class balance sampling, and immutability without disk or database access.
+* **Ingestion Tests (`test_ingest.py`):** Validate BSON types and random 10% unlabeling using in-memory synthetic datasets and Pytest's `tmp_path`.
+* **Model Tests (`test_modelo.py`):** Train a synthetic pipeline with 16 samples using a module-scoped fixture, asserting probability calibrations and `joblib` roundtrips.
+* **API Tests (`test_api.py`):** Use FastAPI's `TestClient` and `app.dependency_overrides` with `FakeReviewRepository` and `FakeClassificador` to validate HTTP status codes (201, 404, 422, 503) with 0 network calls.
+* **Interface Tests (`test_interface.py`):** Mock `httpx` network responses to test Streamlit connectivity, health checks, and timeout handling.
