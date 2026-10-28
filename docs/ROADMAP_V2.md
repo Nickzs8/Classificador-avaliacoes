@@ -21,7 +21,7 @@ The underlying V1 components (data repository, ML pipeline, MongoDB database, an
 | **FastAPI + Uvicorn** | High-performance Python ASGI framework with automatic type validation and interactive OpenAPI docs at `/docs`. |
 | **Model loaded once at application startup** | Deserializing the binary `.joblib` model on every HTTP request would introduce prohibitive latency. |
 | **Synchronous route handlers (`def`, not `async def`)** | `pymongo` and `scikit-learn` are synchronous and blocking. Using standard `def` offloads execution to an AnyIO worker threadpool, preserving event loop responsiveness. |
-| **Decoupled Service Layer (`services/classificador.py`)** | Centralizes ML inference into a reusable service consumed by both batch jobs (`predict.py`) and API controllers without logic duplication. |
+| **Decoupled Service Layer (`services/classifier.py`)** | Centralizes ML inference into a reusable service consumed by both batch jobs (`predict.py`) and API controllers without logic duplication. |
 | **Dependency Injection (`Depends`)** | Decouples lifecycle management for repositories and services, enabling seamless unit and integration testing via in-memory mocks. |
 | **Pydantic Schemas for DTOs** | Establishes strict data contracts, field validation, and documentation for both request payloads and responses. |
 | **Decoupled HTTP Interface** | The frontend communicates strictly via standard REST HTTP endpoints, with no direct access to the database or ML model. |
@@ -34,18 +34,18 @@ The underlying V1 components (data repository, ML pipeline, MongoDB database, an
 
 | Method & Route | Description | Expected Status |
 |---|---|---|
-| `POST /avaliacoes` | Receives review text, runs ML inference, persists to MongoDB, and returns result | `201 Created` |
-| `GET /avaliacoes/{id}` | Fetches a single review by its hexadecimal MongoDB ObjectId | `200 OK` or `404 Not Found` |
-| `GET /avaliacoes?limite=10` | Lists recent reviews ordered by creation date descending | `200 OK` (list) |
-| `GET /saude` | System healthcheck validating API, database connectivity, and ML model | `200 OK` or `503 Service Unavailable` |
+| `POST /reviews` | Receives review text, runs ML inference, persists to MongoDB, and returns result | `201 Created` |
+| `GET /reviews/{id}` | Fetches a single review by its hexadecimal MongoDB ObjectId | `200 OK` or `404 Not Found` |
+| `GET /reviews?limit=10` | Lists recent reviews ordered by creation date descending | `200 OK` (list) |
+| `GET /health` | System healthcheck validating API, database connectivity, and ML model | `200 OK` or `503 Service Unavailable` |
 
 ### Payload Examples
 
-**Request (`POST /avaliacoes`):**
+**Request (`POST /reviews`):**
 ```json
 {
-  "texto": "Chegou rápido, mas a embalagem veio amassada",
-  "produto": "Fone Bluetooth X"
+  "text": "Chegou rápido, mas a embalagem veio amassada",
+  "product": "Fone Bluetooth X"
 }
 ```
 
@@ -53,16 +53,16 @@ The underlying V1 components (data repository, ML pipeline, MongoDB database, an
 ```json
 {
   "id": "6720c1f2e4b0a1d2c3e4f5a6",
-  "texto": "Chegou rápido, mas a embalagem veio amassada",
-  "produto": "Fone Bluetooth X",
-  "classe": "negativo",
-  "confianca": 0.71,
-  "modelo": "modelo_v1",
-  "data": "2026-10-26T14:05:00Z"
+  "text": "Chegou rápido, mas a embalagem veio amassada",
+  "product": "Fone Bluetooth X",
+  "sentiment": "negative",
+  "confidence": 0.71,
+  "model": "modelo_v1",
+  "date": "2026-10-26T14:05:00Z"
 }
 ```
 
-* The `produto` field is optional.
+* The `product` field is optional.
 * Review texts shorter than 3 characters or longer than 2000 characters return `422 Unprocessable Entity`.
 
 ### MongoDB Document Schema for API Submissions
@@ -95,7 +95,7 @@ The underlying V1 components (data repository, ML pipeline, MongoDB database, an
 src/
 ├─ (V1 core pipeline files)
 ├─ services/
-│  └─ classificador.py     # Service: loads model and runs text inference
+│  └─ classifier.py        # Service: loads model and runs text inference
 ├─ api/
 │  ├─ main.py              # FastAPI app, lifecycle, and route handlers
 │  ├─ schemas.py           # Pydantic schemas (input/output validation)
@@ -105,7 +105,7 @@ src/
 │  └─ dashboard.py         # Analytical business dashboard (Streamlit)
 tests/
 ├─ (V1 pipeline tests)
-├─ test_classificador.py   # Unit tests for the inference service layer
+├─ test_classifier.py      # Unit tests for the inference service layer
 ├─ test_api.py             # Integration tests for API endpoints (with TestClient)
 └─ test_interface.py       # Unit tests for Streamlit HTTP client utilities
 ```
@@ -120,10 +120,10 @@ tests/
   * Create `v2` development branch.
 * **Step 2: Project Preparation**
   * Install dependencies (`fastapi`, `uvicorn[standard]`, `httpx`).
-  * Extend `ReviewRepository`: `inserir_avaliacao()`, `buscar_por_id()`, `listar_recentes()`, `ping()`, and index on `data`.
-  * Adjust `taxa_acerto` pipeline to filter `rotulo_real: {"$ne": null}`.
-* **Step 3: Classification Service Layer (`services/classificador.py`)**
-  * Create decoupled `Classificador` class.
+  * Extend `ReviewRepository`: `insert_review()`, `find_by_id()`, `list_recent()`, `ping()`, and index on `date`.
+  * Adjust `accuracy_rate` pipeline to filter `true_label: {"$ne": null}`.
+* **Step 3: Classification Service Layer (`services/classifier.py`)**
+  * Create decoupled `Classifier` class.
   * Refactor `predict.py` to use the shared classification service.
 * **Step 4: API Endpoints**
   * Implement `schemas.py`, `main.py`, and `dependencies.py`.
@@ -137,7 +137,7 @@ tests/
   * Interactive form with text input and optional product field.
   * Visual feedback: sentiment badge and confidence progress bar.
 * **Step 7: User Experience (UX) and Live Activity Feed**
-  * Recent review listing via `GET /avaliacoes?limite=10`.
+  * Recent review listing via `GET /reviews?limit=10`.
   * Low confidence alerts (< 60%) and API error handling.
 * **Step 8: Documentation and V2 Release**
   * Update READMEs with `curl` examples and interactive documentation links.
@@ -149,7 +149,7 @@ tests/
   * Translate all docs.
   * Translate `ReviewRepository` methods (`insert_review`, `find_by_id`, `list_recent`, `accuracy_rate`).
   * Translate Pydantic schemas (`ReviewInput`, `ReviewOutput`, `HealthOutput`) and API routes (`/reviews`, `/health`).
-  * Rename `Classificador` to `ClassifierService` (`classify_text`, `classify_documents`).
+  * Rename `Classificador` to `Classifier` (`classify_text`, `classify_documents`).
 * **Step 10: Test Suite and Pipeline Refactoring**
   * Translate test functions and assertions in `tests/` while preserving 100% test coverage.
   * Update data scripts (`prepare_data.py`, `ingest.py`, `train.py`) and `run_pipeline.py`.

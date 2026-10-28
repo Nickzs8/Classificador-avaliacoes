@@ -10,7 +10,7 @@
 
 A fundamental architectural constraint of this repository is that **automated tests must never depend on an active MongoDB instance or external network connectivity**.
 
-If route handlers directly instantiated `ReviewRepository()` or `Classificador()` inside endpoint functions, unit and integration tests with `TestClient` would attempt to establish live network connections to `localhost:27017`, causing tests to fail in environments without running Docker containers (such as lightweight CI/CD runners).
+If route handlers directly instantiated `ReviewRepository()` or `Classifier()` inside endpoint functions, unit and integration tests with `TestClient` would attempt to establish live network connections to `localhost:27017`, causing tests to fail in environments without running Docker containers (such as lightweight CI/CD runners).
 
 ---
 
@@ -19,19 +19,19 @@ If route handlers directly instantiated `ReviewRepository()` or `Classificador()
 Utilize FastAPI's native **Dependency Injection (`Depends`)** mechanism across all API route handlers:
 
 1. **Provider Functions in `src/api/dependencies.py`:**
-   * `get_repositorio() -> Generator[ReviewRepository, None, None]`: Context manager yielding a live `ReviewRepository` instance and ensuring proper connection closure.
-   * `get_classificador() -> Classificador`: Singleton provider cached via `@lru_cache(maxsize=1)` to ensure the ML model artifact is loaded exactly once into memory.
+   * `get_repository() -> Generator[ReviewRepository, None, None]`: Context manager yielding a live `ReviewRepository` instance and ensuring proper connection closure.
+   * `get_classifier() -> Classifier`: Singleton provider cached via `@lru_cache(maxsize=1)` to ensure the ML model artifact is loaded exactly once into memory.
 2. **Endpoint Inversion of Control:**
    * Handlers receive instances exclusively through parameters:
      ```python
-     def criar_avaliacao(
-         payload: AvaliacaoEntrada,
-         repo: ReviewRepository = Depends(get_repositorio),
-         classificador: Classificador = Depends(get_classificador),
+     def create_review(
+         payload: ReviewInput,
+         repo: ReviewRepository = Depends(get_repository),
+         classifier: Classifier = Depends(get_classifier),
      ):
      ```
 3. **In-Memory Testing with `app.dependency_overrides`:**
-   * Pytest fixtures override providers with lightweight fake implementations (`FakeReviewRepository` and `FakeClassificador`), testing routes with 100% database isolation in RAM.
+   * Pytest fixtures override providers with lightweight fake implementations (`FakeReviewRepository` and `FakeClassifier`), testing routes with 100% database isolation in RAM.
 
 ---
 

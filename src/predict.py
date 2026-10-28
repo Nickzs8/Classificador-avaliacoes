@@ -3,86 +3,89 @@ from pathlib import Path
 
 from sklearn.metrics import accuracy_score, classification_report
 
-from services.classificador import Classificador
 from config import MODEL_PATH
 from repository import ReviewRepository
+from services.classifier import Classifier
 
 
-def prever(modelo, documentos):
-    """Extrai predições para documentos usando um modelo"""
-    textos = [d["texto"] for d in documentos]
-    probabilidades = modelo.predict_proba(textos)
-    posicoes = probabilidades.argmax(axis=1)
+def predict_batch(model, documents: list[dict]) -> list[dict]:
+    """Generates predictions for a batch of documents using a Scikit-Learn model."""
+    texts = [d["text"] for d in documents]
+    probabilities = model.predict_proba(texts)
+    positions = probabilities.argmax(axis=1)
 
-    versao = Path(MODEL_PATH).stem
-    agora = datetime.now(timezone.utc)
+    version = Path(MODEL_PATH).stem
+    now = datetime.now(timezone.utc)
 
-    predicoes = []
-    for doc, probs, pos in zip(documentos, probabilidades, posicoes):
-        predicoes.append(
+    predictions = []
+    for doc, probs, pos in zip(documents, probabilities, positions):
+        predictions.append(
             {
                 "_id": doc["_id"],
-                "predicao": {
-                    "classe": str(modelo.classes_[pos]),
-                    "confianca": float(probs[pos]),
-                    "modelo": versao,
-                    "data": agora,
+                "prediction": {
+                    "sentiment": str(model.classes_[pos]),
+                    "confidence": float(probs[pos]),
+                    "model": version,
+                    "date": now,
                 },
             }
         )
-    return predicoes
+    return predictions
 
 
-def carregar_documentos():
+def load_unlabeled_documents() -> list[dict]:
+    """Fetches unlabeled documents from MongoDB awaiting inference."""
     with ReviewRepository() as repo:
-        return repo.buscar_sem_predicao()
+        return repo.find_unlabeled()
 
 
-def gravar_predicoes(predicoes):
+def save_predictions(predictions: list[dict]) -> int:
+    """Persists prediction subdocuments to MongoDB."""
     with ReviewRepository() as repo:
-        return repo.gravar_predicoes(predicoes)
+        return repo.save_predictions(predictions)
 
 
-def avaliar(documentos, predicoes, n_erros=5):
-    # o rotulo_real só é usado aqui, para avaliar
-    reais = [d["rotulo_real"] for d in documentos]
-    previstos = [p["predicao"]["classe"] for p in predicoes]
+def evaluate_predictions(documents: list[dict], predictions: list[dict], n_errors: int = 5):
+    """Evaluates prediction accuracy against true ground truth labels."""
+    true_labels = [d["true_label"] for d in documents]
+    predicted_labels = [p["prediction"]["sentiment"] for p in predictions]
 
     print("\n" + "=" * 50)
-    print("AVALIAÇÃO DAS PREDIÇÕES")
+    print("PREDICTION EVALUATION")
     print("=" * 50)
-    print(f"Acurácia: {accuracy_score(reais, previstos):.3f}\n")
-    print(classification_report(reais, previstos))
+    print(f"Accuracy: {accuracy_score(true_labels, predicted_labels):.3f}\n")
+    print(classification_report(true_labels, predicted_labels))
 
-    erros = [
+    errors = [
         (d, p)
-        for d, p in zip(documentos, predicoes)
-        if d["rotulo_real"] != p["predicao"]["classe"]
+        for d, p in zip(documents, predictions)
+        if d["true_label"] != p["prediction"]["sentiment"]
     ]
-    print(f"Erros: {len(erros)} de {len(documentos)}")
-    for doc, pred in erros[:n_erros]:
-        print(
-            f"- real={doc['rotulo_real']} | previsto={pred['predicao']['classe']} "
-            f"({pred['predicao']['confianca']:.2f}) | {doc['texto'][:100]}"
-        )
+    print(f"Errors: {len(errors)} of {len(documents)}")
+    for doc, pred in errors[:n_errors]:
+        sentiment = pred["prediction"]["sentiment"]
+        confidence = pred["prediction"]["confidence"]
+        text_snippet = doc["text"][:100]
+        print(f"- true={doc['true_label']} | predicted={sentiment} ({confidence:.2f}) | {text_snippet}")
 
 
-def classificar_pendentes():
-    classificador = Classificador()
+def classify_pending():
+    """Service-level workflow to run batch classification for pending reviews."""
+    classifier = Classifier()
 
-    documentos = carregar_documentos()
-    if not documentos:
-        print("Nenhum documento pendente de predição.")
+    documents = load_unlabeled_documents()
+    if not documents:
+        print("No documents pending classification.")
         return
 
-    print(f"Documentos a classificar: {len(documentos)}")
+    print(f"Documents to classify: {len(documents)}")
 
-    predicoes = classificador.classificar_documentos(documentos)
-    gravados = gravar_predicoes(predicoes)
-    print(f"Predições gravadas: {gravados}")
+    predictions = classifier.classify_documents(documents)
+    saved_count = save_predictions(predictions)
+    print(f"Predictions saved: {saved_count}")
 
-    avaliar(documentos, predicoes)
+    evaluate_predictions(documents, predictions)
 
 
 if __name__ == "__main__":
-    classificar_pendentes()
+    classify_pending()

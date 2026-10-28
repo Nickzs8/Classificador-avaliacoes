@@ -19,7 +19,7 @@ However, the primary backend dependencies (`pymongo` for MongoDB access, and `sc
 1. **Adopt FastAPI as the REST Framework:**
    * High performance, automatic OpenAPI / Swagger generation, and native integration with Pydantic for request/response serialization.
 2. **Declare Route Handlers with Standard Synchronous `def`:**
-   * Handlers that invoke `ReviewRepository` or `Classificador` must use `def`, **never `async def`**.
+   * Handlers that invoke `ReviewRepository` or `Classifier` must use `def`, **never `async def`**.
    * FastAPI automatically offloads synchronous `def` routes to an external threadpool (via AnyIO), allowing the main event loop to remain fully responsive for incoming connections and concurrent I/O.
 
 ---

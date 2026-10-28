@@ -1,140 +1,134 @@
 from typing import List
 from fastapi import FastAPI, Depends, HTTPException, Query, Response, status
 
-from api.dependencies import get_repositorio, get_classificador
-from api.schemas import AvaliacaoEntrada, AvaliacaoSaida, SaudeSaida
+from api.dependencies import get_repository, get_classifier
+from api.schemas import ReviewInput, ReviewOutput, HealthOutput
 from repository import ReviewRepository
-from services.classificador import Classificador
+from services.classifier import Classifier
 
 app = FastAPI(
-    title="API de Classificação de Avaliações",
-    description="Classificação em tempo real de sentimento de avaliações de e-commerce em português.",
+    title="Review Sentiment Classifier API",
+    description="Real-time sentiment classification for customer reviews.",
     version="2.0.0",
 )
 
 
 @app.post(
-    "/avaliacoes",
-    response_model=AvaliacaoSaida,
+    "/reviews",
+    response_model=ReviewOutput,
     status_code=status.HTTP_201_CREATED,
-    tags=["Avaliações"],
+    tags=["Reviews"],
 )
-def criar_avaliacao(
-    payload: AvaliacaoEntrada,
-    repo: ReviewRepository = Depends(get_repositorio),
-    classificador: Classificador = Depends(get_classificador),
+def create_review(
+    payload: ReviewInput,
+    repo: ReviewRepository = Depends(get_repository),
+    classifier: Classifier = Depends(get_classifier),
 ):
-    """Classifica uma avaliação enviada pelo usuário e persiste o resultado no banco."""
+    """Classifies a customer review and persists the record into MongoDB."""
+    prediction = classifier.classify_text(payload.text)
 
-    # 1. Inferência com o modelo
-    predicao = classificador.classificar_texto(payload.texto)
-
-    # 2. Montagem do documento BSON
-    documento = {
-        "texto": payload.texto,
-        "produto": payload.produto,
-        "data": predicao["data"],
-        "nota": None,
-        "rotulo": None,
-        "rotulo_real": None,
-        "predicao": {
-            "classe": predicao["classe"],
-            "confianca": predicao["confianca"],
-            "modelo": predicao["modelo"],
-            "data": predicao["data"],
+    document = {
+        "text": payload.text,
+        "product": payload.product,
+        "date": prediction["date"],
+        "rating": None,
+        "label": None,
+        "true_label": None,
+        "prediction": {
+            "sentiment": prediction["sentiment"],
+            "confidence": prediction["confidence"],
+            "model": prediction["model"],
+            "date": prediction["date"],
         },
-        "origem": "api",
+        "origin": "api",
     }
 
-    # 3. Gravação no MongoDB
-    id_gerado = repo.inserir_avaliacao(documento)
+    generated_id = repo.insert_review(document)
 
-    # 4. Retorno estruturado no DTO de saída
-    return AvaliacaoSaida(
-        id=id_gerado,
-        texto=payload.texto,
-        produto=payload.produto,
-        classe=predicao["classe"],
-        confianca=predicao["confianca"],
-        modelo=predicao["modelo"],
-        data=predicao["data"],
+    return ReviewOutput(
+        id=generated_id,
+        text=payload.text,
+        product=payload.product,
+        sentiment=prediction["sentiment"],
+        confidence=prediction["confidence"],
+        model=prediction["model"],
+        date=prediction["date"],
     )
 
 
 @app.get(
-    "/avaliacoes/{id}",
-    response_model=AvaliacaoSaida,
-    tags=["Avaliações"],
+    "/reviews/{id}",
+    response_model=ReviewOutput,
+    tags=["Reviews"],
 )
-def obter_avaliacao(
+def get_review(
     id: str,
-    repo: ReviewRepository = Depends(get_repositorio),
+    repo: ReviewRepository = Depends(get_repository),
 ):
-    """Busca uma avaliação específica pelo seu ID hexadecimal."""
-    doc = repo.buscar_por_id(id)
+    """Retrieves a specific review by its unique identifier."""
+    doc = repo.find_by_id(id)
     if not doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Avaliação com ID '{id}' não foi encontrada.",
+            detail=f"Review with ID '{id}' was not found.",
         )
 
-    # Trata documentos da API ou legados com subdocumento predicao
-    pred = doc.get("predicao") or {}
-    return AvaliacaoSaida(
+    pred = doc.get("prediction") or {}
+    return ReviewOutput(
         id=doc["_id"],
-        texto=doc["texto"],
-        produto=doc.get("produto"),
-        classe=pred.get("classe") or doc.get("rotulo") or "positivo",
-        confianca=pred.get("confianca", 1.0),
-        modelo=pred.get("modelo", "legado"),
-        data=doc.get("data") or pred.get("data"),
+        text=doc["text"],
+        product=doc.get("product"),
+        sentiment=pred.get("sentiment") or doc.get("label") or "positive",
+        confidence=pred.get("confidence", 1.0),
+        model=pred.get("model", "legacy"),
+        date=doc.get("date") or pred.get("date"),
     )
 
 
 @app.get(
-    "/avaliacoes",
-    response_model=List[AvaliacaoSaida],
-    tags=["Avaliações"],
+    "/reviews",
+    response_model=List[ReviewOutput],
+    tags=["Reviews"],
 )
-def listar_avaliacoes(
-    limite: int = Query(default=10, ge=1, le=100, description="Quantidade máxima de itens retornados"),
-    repo: ReviewRepository = Depends(get_repositorio),
+def list_reviews(
+    limit: int = Query(default=10, ge=1, le=100, description="Maximum number of items to return"),
+    repo: ReviewRepository = Depends(get_repository),
 ):
-    """Lista as avaliações mais recentes cadastradas na base."""
-    docs = repo.listar_recentes(limite=limite)
-    resultado = []
+    """Lists recent reviews ordered by date descending."""
+    docs = repo.list_recent(limit=limit)
+    results = []
     for doc in docs:
-        pred = doc.get("predicao") or {}
-        resultado.append(
-            AvaliacaoSaida(
+        pred = doc.get("prediction") or {}
+        results.append(
+            ReviewOutput(
                 id=doc["_id"],
-                texto=doc["texto"],
-                produto=doc.get("produto"),
-                classe=pred.get("classe") or doc.get("rotulo") or "positivo",
-                confianca=pred.get("confianca", 1.0),
-                modelo=pred.get("modelo", "legado"),
-                data=doc.get("data") or pred.get("data"),
+                text=doc["text"],
+                product=doc.get("product"),
+                sentiment=pred.get("sentiment") or doc.get("label") or "positive",
+                confidence=pred.get("confidence", 1.0),
+                model=pred.get("model", "legacy"),
+                date=doc.get("date") or pred.get("date"),
             )
         )
-    return resultado
+    return results
 
 
 @app.get(
-    "/saude",
-    response_model=SaudeSaida,
-    tags=["Monitoramento"],
+    "/health",
+    response_model=HealthOutput,
+    tags=["Health"],
 )
-def verificar_saude(
+def check_health(
     response: Response,
-    repo: ReviewRepository = Depends(get_repositorio),
-    classificador: Classificador = Depends(get_classificador),
+    repo: ReviewRepository = Depends(get_repository),
+    classifier: Classifier = Depends(get_classifier),
 ):
-    """Healthcheck: valida conectividade do MongoDB e carregamento do modelo na memória."""
-    banco_ok = repo.ping()
-    modelo_ok = classificador is not None and classificador.modelo is not None
+    """Healthcheck: validates MongoDB connection and loaded model artifact."""
+    db_ok = repo.ping()
+    model_ok = classifier is not None and classifier.model is not None
 
-    if not banco_ok or not modelo_ok:
+    if not db_ok or not model_ok:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return SaudeSaida(status="erro", banco=banco_ok, modelo=modelo_ok)
+        return HealthOutput(status="error", database=db_ok, model=model_ok)
 
-    return SaudeSaida(status="ok", banco=True, modelo=True)
+    return HealthOutput(status="ok", database=True, model=True)

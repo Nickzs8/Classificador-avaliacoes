@@ -1,7 +1,7 @@
 services:
   mongo:
     image: mongo:8.2
-    container_name: mongo-classificador-avaliacoes
+    container_name: mongo-review-classifier
     restart: unless-stopped
     ports:
       - "127.0.0.1:${MONGO_PORT}:27017"

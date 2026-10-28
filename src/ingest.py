@@ -2,50 +2,55 @@ from pathlib import Path
 import pandas as pd
 from repository import ReviewRepository
 
-CSV = Path("data/reviews.csv")
-PROPORCAO_SEM_ROTULO = 0.10
+CSV_PATH = Path("data/reviews.csv")
+UNLABELED_RATIO = 0.10
 SEED = 42
 
 
-def carregar_csv(caminho):
-    df = pd.read_csv(caminho)
-    df["data"] = pd.to_datetime(df["data"], errors="coerce")
+def load_csv(file_path: Path | str) -> pd.DataFrame:
+    """Loads reviews CSV and parses date column into datetime format."""
+    df = pd.read_csv(file_path)
+    if "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
     return df
 
 
-def montar_documentos(df):
-    # transforma cada linha do DataFrame em um documento do MongoDB.
-    # sorteia 10% das linhas para entrarem sem rótulo
+def build_documents(df: pd.DataFrame) -> list[dict]:
+    """
+    Transforms DataFrame rows into MongoDB BSON documents.
+    Randomly assigns 10% of documents to have label=None (unlabeled for batch prediction).
+    """
+    unlabeled_indices = set(df.sample(frac=UNLABELED_RATIO, random_state=SEED).index)
 
-    sem_rotulo = set(df.sample(frac=PROPORCAO_SEM_ROTULO, random_state=SEED).index)
-
-    documentos = []
-    for linha in df.itertuples():
-        documentos.append({
-            "texto": linha.texto,
-            "produto": None if pd.isna(linha.produto) else linha.produto,
-            "data": None if pd.isna(linha.data) else linha.data.to_pydatetime(),
-            "nota": int(linha.nota),
-            "rotulo": None if linha.Index in sem_rotulo else linha.rotulo,
-            "rotulo_real": linha.rotulo,
-            "predicao": None,
-        })
-    return documentos
+    documents = []
+    for row in df.itertuples():
+        doc = {
+            "text": row.text,
+            "product": None if pd.isna(row.product) else row.product,
+            "date": None if pd.isna(row.date) else row.date.to_pydatetime(),
+            "rating": int(row.rating),
+            "label": None if row.Index in unlabeled_indices else row.label,
+            "true_label": row.label,
+            "prediction": None,
+            "origin": "batch",
+        }
+        documents.append(doc)
+    return documents
 
 
 def main():
-    df = carregar_csv(CSV)
-    print(f"CSV lido: {len(df)} linhas")
+    df = load_csv(CSV_PATH)
+    print(f"CSV loaded: {len(df)} rows")
 
-    documentos = montar_documentos(df)
+    documents = build_documents(df)
 
     with ReviewRepository() as repo:
-        repo.limpar()
-        inseridos = repo.inserir_varios(documentos)
-        repo.criar_indices()
+        repo.clear()
+        inserted_count = repo.insert_many(documents)
+        repo.create_indexes()
 
-        print(f"Inseridos: {inseridos} documentos")
-        print("Documentos por rótulo:", repo.contar_por_rotulo())
+        print(f"Inserted: {inserted_count} documents")
+        print("Documents by label:", repo.count_by_label())
 
 
 if __name__ == "__main__":

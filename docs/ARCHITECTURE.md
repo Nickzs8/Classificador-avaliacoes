@@ -29,7 +29,7 @@ The project follows a **Layered Architecture** emphasizing loose coupling, high 
 
 ### Adopted Patterns:
 * **Repository Pattern (`ReviewRepository`):** Encapsulates all query complexity, BSON aggregation pipelines, and MongoDB operations in a single class. No other module imports or interacts directly with `pymongo` or `MongoClient`.
-* **Service Layer (`src/services/classificador.py`):** Centralizes model loading and NLP inference logic, sharing the exact same prediction pipeline across batch workflows and real-time API endpoints.
+* **Service Layer (`src/services/classifier.py`):** Centralizes model loading and NLP inference logic, sharing the exact same prediction pipeline across batch workflows and real-time API endpoints.
 * **DTO / Schemas (Pydantic V2):** Enforces strict data contracts, type safety, and input sanitization on API boundaries.
 * **Dependency Injection (`Depends`):** Injects repositories and services into FastAPI route handlers, enabling deterministic unit testing via in-memory mocks without requiring a running database.
 * **Threadpool Offloading:** Route handlers that interact with blocking libraries (`pymongo`, `scikit-learn`, `joblib`) are defined with synchronous `def`. FastAPI automatically executes them in a dedicated worker threadpool, preventing event loop starvation.
@@ -64,22 +64,22 @@ Raw Dataset (CSV)
 ```
 End User / Web Client
         │
-        │ HTTP POST /avaliacoes {"texto": "...", "produto": "..."}
+        │ HTTP POST /reviews {"text": "...", "product": "..."}
         ▼
    FastAPI (Synchronous routes + Pydantic Schemas)
         │
         ├──► Classifier Service (loads modelo_v1.joblib once in memory)
         │         │
         │         ▼
-        │    Prediction: class ("positivo"/"negativo") + confidence (float)
+        │    Prediction: sentiment ("positive"/"negative") + confidence (float)
         │
         └──► ReviewRepository (MongoDB)
                   │
                   ▼
           Persists BSON document:
-          - nota: null, rotulo: null, rotulo_real: null
-          - predicao: { classe, confianca, modelo, data }
-          - origem: "api"
+          - rating: null, label: null, true_label: null
+          - prediction: { sentiment, confidence, model, date }
+          - origin: "api"
 ```
 
 ---
@@ -92,31 +92,31 @@ The database uses flexible BSON documents, ensuring seamless interoperability be
 ```json
 {
   "_id": {"$oid": "653b1e7c8f9b2a1234567890"},
-  "texto": "Chegou rápido, mas a embalagem veio amassada",
-  "produto": "Fone Bluetooth X",
-  "data": "2018-03-12T14:05:00.000Z",
-  "nota": 2,
-  "rotulo": null,
-  "rotulo_real": "negativo",
-  "predicao": {
-    "classe": "negativo",
-    "confianca": 0.71,
-    "modelo": "modelo_v1",
-    "data": "2026-10-24T14:05:00.000Z"
+  "text": "Chegou rápido, mas a embalagem veio amassada",
+  "product": "Fone Bluetooth X",
+  "date": "2018-03-12T14:05:00.000Z",
+  "rating": 2,
+  "label": null,
+  "true_label": "negative",
+  "prediction": {
+    "sentiment": "negative",
+    "confidence": 0.71,
+    "model": "modelo_v1",
+    "date": "2026-10-24T14:05:00.000Z"
   },
-  "origem": "api"
+  "origin": "api"
 }
 ```
 
 ### Field Rationale:
-* **`texto` (String):** Sanitized customer review text (trimmed, minimum 10 characters for training; minimum 3 characters for API).
-* **`produto` (String / Null):** Evaluated product name (optional for API clients).
-* **`data` (ISODate):** Native BSON UTC timestamp enabling temporal aggregation and grouping via `$dateToString`.
-* **`nota` (Int / Null):** Customer rating from 1 to 5 (null for reviews submitted via API).
-* **`rotulo` (String / Null):** Supervised training label (`"positivo"` or `"negativo"`). Stored as `null` in ~10% of batch data and in all API submissions to simulate unlabeled production data.
-* **`rotulo_real` (String / Null):** Original ground truth rating from the dataset for auditability. **Never exposed during training**.
-* **`predicao` (Object / Null):** Subdocument populated by the classifier containing predicted `classe`, calibrated `confianca` probability, model identifier, and execution timestamp.
-* **`origem` (String / Null):** Tracks data provenance (`"api"` or default `"batch"`).
+* **`text` (String):** Sanitized customer review text (trimmed, minimum 10 characters for training; minimum 3 characters for API).
+* **`product` (String / Null):** Evaluated product name (optional for API clients).
+* **`date` (ISODate):** Native BSON UTC timestamp enabling temporal aggregation and grouping via `$dateToString`.
+* **`rating` (Int / Null):** Customer rating from 1 to 5 (null for reviews submitted via API).
+* **`label` (String / Null):** Supervised training label (`"positive"` or `"negative"`). Stored as `null` in ~10% of batch data and in all API submissions to simulate unlabeled production data.
+* **`true_label` (String / Null):** Original ground truth rating from the dataset for auditability. **Never exposed during training**.
+* **`prediction` (Object / Null):** Subdocument populated by the classifier containing predicted `sentiment`, calibrated `confidence` probability, model identifier, and execution timestamp.
+* **`origin` (String / Null):** Tracks data provenance (`"api"` or default `"batch"`).
 
 ---
 
@@ -167,8 +167,8 @@ This guarantees that API submissions (which lack ground truth labels) are never 
 ## 6. Automated Testing Strategy
 
 The test suite enforces complete test isolation:
-* **Preprocessing Tests (`test_rotulagem.py`):** Verify sanitization rules, class balance sampling, and immutability without disk or database access.
+* **Preprocessing Tests (`test_labeling.py`):** Verify sanitization rules, class balance sampling, and immutability without disk or database access.
 * **Ingestion Tests (`test_ingest.py`):** Validate BSON types and random 10% unlabeling using in-memory synthetic datasets and Pytest's `tmp_path`.
-* **Model Tests (`test_modelo.py`):** Train a synthetic pipeline with 16 samples using a module-scoped fixture, asserting probability calibrations and `joblib` roundtrips.
-* **API Tests (`test_api.py`):** Use FastAPI's `TestClient` and `app.dependency_overrides` with `FakeReviewRepository` and `FakeClassificador` to validate HTTP status codes (201, 404, 422, 503) with 0 network calls.
+* **Model Tests (`test_model.py`):** Train a synthetic pipeline with 16 samples using a module-scoped fixture, asserting probability calibrations and `joblib` roundtrips.
+* **API Tests (`test_api.py`):** Use FastAPI's `TestClient` and `app.dependency_overrides` with `FakeReviewRepository` and `FakeClassifier` to validate HTTP status codes (201, 404, 422, 503) with 0 network calls.
 * **Interface Tests (`test_interface.py`):** Mock `httpx` network responses to test Streamlit connectivity, health checks, and timeout handling.

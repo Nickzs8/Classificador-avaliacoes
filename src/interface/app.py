@@ -25,9 +25,9 @@ API_BASE_URL = os.getenv("API_URL", f"http://127.0.0.1:{API_PORT}")
 
 
 def check_api_health(api_url: str) -> dict | None:
-    """Check backend health status via GET /saude."""
+    """Check backend health status via GET /health."""
     try:
-        response = httpx.get(f"{api_url}/saude", timeout=2.0)
+        response = httpx.get(f"{api_url}/health", timeout=2.0)
         if response.status_code == 200:
             return response.json()
         return None
@@ -36,23 +36,23 @@ def check_api_health(api_url: str) -> dict | None:
 
 
 def send_review(api_url: str, text: str, product: str | None = None) -> tuple[int, dict]:
-    """Submit a customer review to the backend API via POST /avaliacoes.
+    """Submit a customer review to the backend API via POST /reviews.
 
     Returns a tuple with (status_code, response_payload).
     """
-    payload = {"texto": text.strip()}
+    payload = {"text": text.strip()}
     if product and product.strip():
-        payload["produto"] = product.strip()
+        payload["product"] = product.strip()
 
     try:
-        response = httpx.post(f"{api_url}/avaliacoes", json=payload, timeout=5.0)
+        response = httpx.post(f"{api_url}/reviews", json=payload, timeout=5.0)
         return response.status_code, response.json()
     except httpx.ConnectError:
-        return 503, {"erro": "Could not connect to the API server. Make sure FastAPI is running."}
+        return 503, {"error": "Could not connect to the API server. Make sure FastAPI is running."}
     except httpx.TimeoutException:
-        return 504, {"erro": "The request timed out while waiting for the API response."}
+        return 504, {"error": "The request timed out while waiting for the API response."}
     except Exception as exc:
-        return 500, {"erro": f"An unexpected error occurred: {str(exc)}"}
+        return 500, {"error": f"An unexpected error occurred: {str(exc)}"}
 
 
 def render_header() -> None:
@@ -67,10 +67,10 @@ def render_header() -> None:
 
 def render_result(result: dict) -> None:
     """Render the sentiment classification result and confidence metrics."""
-    sentiment = result.get("classe", "").lower()
-    confidence = float(result.get("confianca", 0.0))
+    sentiment = result.get("sentiment", "").lower()
+    confidence = float(result.get("confidence", 0.0))
     review_id = result.get("id", "N/A")
-    model_name = result.get("modelo", "N/A")
+    model_name = result.get("model", "N/A")
 
     st.subheader("Analysis Result")
 
@@ -82,9 +82,9 @@ def render_result(result: dict) -> None:
             value=f"{confidence * 100:.1f}%",
         )
     with col_badge:
-        if sentiment == "positivo":
+        if sentiment == "positive":
             st.success("### Sentiment: **Positive**")
-        elif sentiment == "negativo":
+        elif sentiment == "negative":
             st.error("### Sentiment: **Negative**")
         else:
             st.info(f"### Sentiment: **{sentiment.capitalize()}**")
@@ -156,10 +156,10 @@ def main() -> None:
                 detail = response_data.get("detail", "Validation error.")
                 st.error(f"Validation Error: {detail}")
             elif status_code == 503:
-                detail = response_data.get("detail", response_data.get("erro", "Service unavailable."))
+                detail = response_data.get("detail", response_data.get("error", "Service unavailable."))
                 st.error(f"Backend Unavailable: {detail}")
             else:
-                detail = response_data.get("detail", response_data.get("erro", "Unknown error."))
+                detail = response_data.get("detail", response_data.get("error", "Unknown error."))
                 st.error(f"Error {status_code}: {detail}")
 
 
