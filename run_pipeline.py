@@ -1,10 +1,11 @@
 """
 Machine Learning Pipeline Orchestration Script (V1 Batch).
 
-Executes in sequence the initialization and training stages of the project:
+Executes in sequence the initialization, training, and inference stages of the project:
 1. src/prepare_data.py - Data cleaning, business rules, and sentiment labeling from raw CSV.
 2. src/ingest.py       - BSON ingestion and index provisioning in MongoDB (requires active Docker container).
 3. src/train.py        - TF-IDF + Logistic Regression training and .joblib artifact export.
+4. src/predict.py      - Batch inference on pending unlabeled reviews and accuracy evaluation.
 """
 
 import subprocess
@@ -47,21 +48,27 @@ def verify_mongodb_active() -> bool:
 
 STAGES = [
     {
-        "name": "1/3: Data Preparation",
+        "name": "1/4: Data Preparation",
         "script": "src/prepare_data.py",
         "description": "Reads data/raw/B2W-Reviews01.csv, cleans, labels, and generates data/reviews.csv",
         "requires_docker": False,
     },
     {
-        "name": "2/3: MongoDB Ingestion",
+        "name": "2/4: MongoDB Ingestion",
         "script": "src/ingest.py",
         "description": "Loads data/reviews.csv, converts into BSON, and inserts into MongoDB collection",
         "requires_docker": True,
     },
     {
-        "name": "3/3: Model Training",
+        "name": "3/4: Model Training",
         "script": "src/train.py",
         "description": "Trains classifier (TF-IDF + LogisticRegression) and saves .joblib model",
+        "requires_docker": True,
+    },
+    {
+        "name": "4/4: Batch Prediction & Evaluation",
+        "script": "src/predict.py",
+        "description": "Classifies pending unlabeled reviews in MongoDB and evaluates accuracy against ground truth",
         "requires_docker": True,
     },
 ]
@@ -105,7 +112,7 @@ def execute_stage(stage: dict) -> bool:
 
 def main():
     print("=" * 70)
-    print("INITIALIZING MACHINE LEARNING PIPELINE (V1 BATCH)")
+    print("INITIALIZING MACHINE LEARNING PIPELINE")
     print("=" * 70)
 
     raw_csv = Path("data/raw/B2W-Reviews01.csv")
