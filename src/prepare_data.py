@@ -19,7 +19,7 @@ COLUNAS = {
 
 def carregar_bruto(caminho):
     """Lê o CSV original e deixa só as colunas que importam, já renomeadas."""
-    df = pd.read_csv(caminho, sep=";", low_memory=False)
+    df = pd.read_csv(caminho, sep=",", low_memory=False)
     df = df.rename(columns=COLUNAS)
 
     return df[["texto", "nota", "produto", "data"]]

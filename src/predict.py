@@ -1,38 +1,20 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
-import joblib
 from sklearn.metrics import accuracy_score, classification_report
 
+from services.classificador import Classificador
 from config import MODEL_PATH
 from repository import ReviewRepository
 
 
-def carregar_modelo():
-    caminho_modelo = Path(MODEL_PATH)
-
-    if not caminho_modelo.exists():
-        raise FileNotFoundError(
-            f"Modelo não encontrado em {caminho_modelo}. Execute o src/train.py primeiro."
-        )
-
-    modelo = joblib.load(caminho_modelo)
-    print(f"Modelo carregado de: {caminho_modelo}")
-    return modelo
-
-
-def carregar_documentos():
-    with ReviewRepository() as repo:
-        return repo.buscar_sem_predicao()
-
-
 def prever(modelo, documentos):
-    # preve todos os textos de uma vez (uma linha de probabilidades por texto)
+    """Extrai predições para documentos usando um modelo"""
     textos = [d["texto"] for d in documentos]
     probabilidades = modelo.predict_proba(textos)
-    posicoes = probabilidades.argmax(axis=1)  # posição da classe mais provável
+    posicoes = probabilidades.argmax(axis=1)
 
-    versao = Path(MODEL_PATH).stem  # "modelo_v1"
+    versao = Path(MODEL_PATH).stem
     agora = datetime.now(timezone.utc)
 
     predicoes = []
@@ -49,6 +31,11 @@ def prever(modelo, documentos):
             }
         )
     return predicoes
+
+
+def carregar_documentos():
+    with ReviewRepository() as repo:
+        return repo.buscar_sem_predicao()
 
 
 def gravar_predicoes(predicoes):
@@ -81,7 +68,7 @@ def avaliar(documentos, predicoes, n_erros=5):
 
 
 def classificar_pendentes():
-    modelo = carregar_modelo()
+    classificador = Classificador()
 
     documentos = carregar_documentos()
     if not documentos:
@@ -90,7 +77,7 @@ def classificar_pendentes():
 
     print(f"Documentos a classificar: {len(documentos)}")
 
-    predicoes = prever(modelo, documentos)
+    predicoes = classificador.classificar_documentos(documentos)
     gravados = gravar_predicoes(predicoes)
     print(f"Predições gravadas: {gravados}")
 

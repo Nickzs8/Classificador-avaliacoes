@@ -21,8 +21,8 @@ Este documento define as diretrizes técnicas, regras de arquitetura, comandos f
 2. **Rotas da API com `def` (Síncronas):**
    * Como `pymongo` e `scikit-learn` realizam operações síncronas bloqueantes, **nunca declare rotas do FastAPI com `async def`** se elas invocarem o repositório ou o classificador.
    * Use sempre `def` padrão para que o FastAPI execute as requisições no pool de threads secundárias (*threadpool*), impedindo o travamento do event loop da API.
-3. **Service Layer Compartilhado (`classificador.py`):**
-   * A inferência do modelo deve ficar centralizada no serviço `Classificador`. Tanto o script batch da V1 (`predict.py`) quanto a API da V2 consomem esse mesmo serviço para evitar duplicação de lógica.
+3. **Service Layer Compartilhado (`src/services/classificador.py`):**
+   * A inferência do modelo deve ficar centralizada no serviço `Classificador` em `src/services/`. Tanto o script batch da V1 (`predict.py`) quanto a API da V2 consomem esse mesmo serviço para evitar duplicação de lógica.
    * O modelo `.joblib` deve ser carregado uma única vez na inicialização da aplicação, nunca a cada requisição HTTP.
 4. **Injeção de Dependências (`Depends`):**
    * As rotas do FastAPI devem receber instâncias de `ReviewRepository` e `Classificador` via `Depends`. Isso é essencial para que os testes automatizados possam injetar mocks em memória sem subir o banco de dados.
@@ -56,7 +56,10 @@ pytest -v
 docker compose up -d
 docker compose ps
 
-# Rodar a esteira da V1 (Batch)
+# Rodar a esteira completa da V1 (Batch)
+python run_pipeline.py
+
+# Ou rodar etapas individuais:
 python src/prepare_data.py
 python src/ingest.py
 python src/train.py
@@ -64,7 +67,9 @@ python src/predict.py
 python src/analytics.py
 
 # Iniciar o Dashboard Web (Streamlit)
-streamlit run src/dashboard.py
+streamlit run src/interface/dashboard.py
+# ou via make:
+make dashboard
 
 # Iniciar o servidor da API (FastAPI)
 uvicorn api.main:app --reload --app-dir src

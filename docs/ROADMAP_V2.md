@@ -21,12 +21,12 @@ Todo o ecossistema construído na V1 (repositório, modelo, banco de dados, aná
 | **FastAPI + Uvicorn** | Ecossistema nativo Python, validação automática por tipagem e documentação interativa OpenAPI em `/docs` sem esforço. |
 | **Modelo carregado uma vez, na inicialização** | Carregar o arquivo binário `.joblib` a cada requisição causaria latência inaceitável. |
 | **Rotas síncronas (`def`, não `async def`)** | Os drivers `pymongo` e `scikit-learn` são bloqueantes. Com `def`, o FastAPI delega a execução para uma thread separada do pool, impedindo o bloqueio do event loop. |
-| **Lógica de predição desacoplada (`classificador.py`)** | Centraliza a inferência em uma camada de serviço (*Service Layer*), permitindo que tanto o batch da V1 (`predict.py`) quanto a API utilizem o mesmo código sem duplicação. |
+| **Lógica de predição desacoplada (`services/classificador.py`)** | Centraliza a inferência em uma camada de serviço (*Service Layer*), permitindo que tanto o batch da V1 (`predict.py`) quanto a API utilizem o mesmo código sem duplicação. |
 | **Injeção de dependência (`Depends`)** | Desacopla o ciclo de vida do repositório e do classificador, viabilizando testes unitários e de integração com mocks sem dependência do MongoDB ativo. |
 | **Schemas Pydantic na entrada e na saída (DTOs)** | Estabelece contratos de dados rígidos com validação de payload e documentação explícita. |
 | **Interface desacoplada via HTTP** | A interface comunica-se estritamente através da API REST, sem acesso direto ao banco ou ao modelo de ML. |
 
-**Padrões de projeto aplicados:** *Repository Pattern*, *Service Layer* (`classificador.py`), *Data Transfer Object / Schema* (Pydantic) e *Dependency Injection* (`Depends`).
+**Padrões de projeto aplicados:** *Repository Pattern*, *Service Layer* (`services/classificador.py`), *Data Transfer Object / Schema* (Pydantic) e *Dependency Injection* (`Depends`).
 
 ---
 
@@ -94,7 +94,8 @@ Todo o ecossistema construído na V1 (repositório, modelo, banco de dados, aná
 ```
 src/
 ├─ (arquivos da V1)
-├─ classificador.py        # Serviço: carrega o modelo e classifica textos
+├─ services/
+│  └─ classificador.py     # Serviço: carrega o modelo e classifica textos
 ├─ api/
 │  ├─ main.py              # Aplicação FastAPI, ciclo de vida e rotas
 │  ├─ schemas.py           # Schemas Pydantic (validação de entrada e saída)
@@ -120,7 +121,7 @@ tests/
   * Instalar dependências (`fastapi`, `uvicorn[standard]`, `httpx`).
   * Atualizar `ReviewRepository`: `inserir_avaliacao()`, `buscar_por_id()`, `listar_recentes()`, `ping()` e índice em `data`.
   * Ajustar pipeline da `taxa_acerto` para ignorar `rotulo_real: null`.
-* **Etapa 3: Serviço de Classificação (`classificador.py`)**
+* **Etapa 3: Serviço de Classificação (`services/classificador.py`)**
   * Criar classe `Classificador` isolada da API.
   * Refatorar `predict.py` para consumir o novo serviço compartilhado.
 * **Etapa 4: Endpoints da API**
@@ -141,6 +142,17 @@ tests/
 * **Etapa 8: Documentação e Release V2**
   * Atualização dos READMEs com exemplos de `curl` e documentação interativa.
   * Merge na branch principal e criação da tag `v2.0`.
+
+### Fase 3: Internacionalização e Refatoração para Inglês (Codebase i18n)
+
+* **Etapa 9: Refatoração do Backend e Banco para Inglês**
+  * Tradução dos métodos e queries de `ReviewRepository` (`insert_review`, `find_by_id`, `list_recent`, `accuracy_rate`).
+  * Tradução dos Schemas Pydantic (`ReviewInput`, `ReviewOutput`, `HealthOutput`) e endpoints da API (`/reviews`, `/health`).
+  * Migração do serviço `Classificador` para `ClassifierService` (`classify_text`, `classify_documents`).
+* **Etapa 10: Refatoração da Suíte de Testes e Pipeline**
+  * Tradução dos testes em `tests/` mantendo cobertura de 100%.
+  * Atualização dos scripts de dados (`prepare_data.py`, `ingest.py`, `train.py`) e `run_pipeline.py`.
+  * Manter o dataset B2W (dados em português) preservado como caso de uso legítimo de NLP em língua portuguesa.
 
 ---
 

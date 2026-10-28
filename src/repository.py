@@ -1,6 +1,8 @@
-from pymongo import ASCENDING, MongoClient, UpdateOne
-
+from pymongo import ASCENDING, MongoClient, UpdateOne, DESCENDING
 from config import MONGO_COLLECTION, MONGO_DB, MONGO_URI
+from pymongo.errors import PyMongoError
+from bson import ObjectId
+from bson.errors import InvalidId
 
 SENTIMENTO = {"$addFields": {"sentimento": {"$ifNull": ["$rotulo", "$predicao.classe"]}}}
 
@@ -26,6 +28,7 @@ class ReviewRepository:
 
     def inserir_varios(self, documentos, lote=5000):
         """Insere em lotes."""
+
         total = 0
         for i in range(0, len(documentos), lote):
             resultado = self._col.insert_many(documentos[i:i + lote], ordered=False)
@@ -35,6 +38,7 @@ class ReviewRepository:
     def criar_indices(self):
         self._col.create_index([("rotulo", ASCENDING)])
         self._col.create_index([("produto", ASCENDING)])
+        self._col.create_index([("data", DESCENDING)])
 
     def contar(self, filtro=None):
         return self._col.count_documents(filtro or {})
@@ -53,12 +57,14 @@ class ReviewRepository:
 
     def buscar_sem_predicao(self):
         """Documentos sem rótulo e ainda sem predição (o _id vem por padrão)."""
+
         filtro = {"rotulo": None, "predicao": None}
         projecao = {"texto": 1, "rotulo_real": 1}
         return list(self._col.find(filtro, projecao))
 
     def gravar_predicoes(self, predicoes, lote=5000):
         """predicoes: lista de dicts {"_id": ..., "predicao": {...}}."""
+
         operacoes = [
             UpdateOne({"_id": p["_id"]}, {"$set": {"predicao": p["predicao"]}})
             for p in predicoes
@@ -70,7 +76,7 @@ class ReviewRepository:
         return modificados
 
     def negativas_por_produto(self, limite=10):
-        ## produtos com mais avaliacoes negativas
+        """produtos com mais avaliacoes negativas"""
 
         pipeline = [
             SENTIMENTO,
@@ -106,6 +112,7 @@ class ReviewRepository:
 
     def evolucao_por_mes(self):
         """Total de avaliações por mês e sentimento (ignora datas nulas)."""
+
         pipeline = [
             SENTIMENTO,
             {"$match": {"data": {"$ne": None}, "sentimento": {"$ne": None}}},
@@ -132,6 +139,7 @@ class ReviewRepository:
 
     def confianca_media_por_classe(self):
         """Confiança média das predições, por classe prevista."""
+
         pipeline = [
             {"$match": {"predicao": {"$ne": None}}},
             {
@@ -155,8 +163,9 @@ class ReviewRepository:
 
     def taxa_acerto(self):
         """% de predições iguais ao rotulo_real, entre os documentos com predição."""
+
         pipeline = [
-            {"$match": {"predicao": {"$ne": None}}},
+            {"$match": {"predicao": {"$ne": None}, "rotulo_real": {"$ne": None}}},
             {
                 "$group": {
                     "_id": None,
@@ -181,3 +190,46 @@ class ReviewRepository:
             },
         ]
         return list(self._col.aggregate(pipeline))
+
+    def ping(self) -> bool:
+        """Verifica se o MongoDB está acessível e respondendo."""
+
+        try:
+            self._client.admin.command("ping")
+            return True
+        except PyMongoError:
+            return False
+
+    def inserir_avaliacao(self, doc: dict) -> str:
+        """Insere uma única avaliação e retorna seu _id gerado como string."""
+
+        resultado = self._col.insert_one(doc)
+        return str(resultado.inserted_id)
+
+    def buscar_por_id(self, id_avaliacao: str) -> dict | None:
+        """Retorna None se não encontrar ou se o ID for inválido."""
+
+        try:
+            objectId = ObjectId(id_avaliacao)
+        except InvalidId:
+            return None
+        doc = self._col.find_one({"_id": objectId})
+        if doc:
+            doc["_id"] = str(doc["_id"])
+        return doc
+
+    def listar_recentes(self, limite: int = 10) -> list[dict]:
+        """Retorna as avaliações mais recentes ordenadas por data decrescente."""
+
+        cursor = (
+            self._col.find()
+            .sort([("data", DESCENDING)])
+            .limit(limite)
+        )
+        documentos = []
+        for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            documentos.append(doc)
+        return documentos
+
+    
